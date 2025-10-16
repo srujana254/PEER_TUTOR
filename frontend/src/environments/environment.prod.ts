@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://peer-tutor-backend-xajb.onrender.com'
+  apiUrl: 'https://peer-backend-6ajt.onrender.com'
 };
