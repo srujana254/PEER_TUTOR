@@ -1,0 +1,35 @@
+<div class="auth-root d-flex align-items-center justify-content-center">
+  <div class="auth-card card p-4 shadow-sm text-center">
+    <div class="auth-icon mb-3">👤</div>
+    <h2 class="fw-bold mb-1">Peer Tutoring Platform</h2>
+    <p class="text-secondary small mb-4">Create your account</p>
+
+    <div class="mb-3 text-start">
+      <label class="form-label small">Full Name</label>
+      <input class="form-control" placeholder="John Doe" [(ngModel)]="fullName" />
+    </div>
+
+    <div class="mb-3 text-start">
+      <label class="form-label small">Email</label>
+      <input class="form-control" placeholder="you@example.com" [(ngModel)]="email" />
+    </div>
+
+    <div class="mb-3 text-start">
+      <label class="form-label small">Password</label>
+      <input type="password" class="form-control" placeholder="********" [(ngModel)]="password" />
+    </div>
+
+    <div class="text-danger small mb-2" *ngIf="error">{{ error }}</div>
+
+    <button class="btn btn-primary w-100 btn-lg mt-2" [disabled]="loading" (click)="submit()">
+      {{ loading ? 'Creating...' : 'Sign Up' }}
+    </button>
+
+    <div class="text-center mt-3 small">
+      <a [routerLink]="'/signin'">Already have an account? Sign in</a>
+    </div>
+  </div>
+</div>
+
+
+

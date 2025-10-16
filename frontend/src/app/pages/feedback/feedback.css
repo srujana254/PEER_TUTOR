@@ -1,0 +1,4 @@
+/* Feedback page styles */
+.feedback-item .rating{ font-size:1.05rem; color:#f59e0b }
+.feedback-root .card{ max-width:900px; margin:0 auto }
+

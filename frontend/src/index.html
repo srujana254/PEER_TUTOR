@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Peer Tutoring</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Google Fonts removed to avoid network inlining during build; using system font stack as fallback -->
+  <!-- Bootstrap and icons are loaded from the local build (angular.json styles) -->
+  <script>
+    // During local UI work, set this to 'mock' to use the built-in dev mock API.
+    // To override in production or to use a real backend, set window.__API_BASE_URL__ before the app boots.
+    if (typeof window.__API_BASE_URL__ === 'undefined') {
+      // default to local backend during development. Set to 'mock' only when backend is unavailable.
+      window.__API_BASE_URL__ = 'http://localhost:4000/api';
+    }
+  </script>
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<div class="modal-root">
+	<div class="card modal-card p-4">
+		<div class="d-flex align-items-center justify-content-between mb-3">
+			<div class="d-flex align-items-center gap-3">
+				<div class="auth-icon">📅</div>
+				<div>
+					<div class="fw-semibold h5 mb-0">Book Session</div>
+				</div>
+			</div>
+			<button class="btn btn-link" (click)="closeModal()"><i class="bi bi-x-lg"></i></button>
+		</div>
+
+		<div class="mb-3">
+			<label class="form-label small">Subject</label>
+					<select class="form-select" [(ngModel)]="subject">
+						<option *ngFor="let s of subjects" [value]="s">{{ s }}</option>
+					</select>
+		</div>
+
+		<div class="row g-3">
+			<div class="col-6">
+				<label class="form-label small">Date</label>
+			<input type="date" class="form-control" [(ngModel)]="date" />
+			</div>
+			<div class="col-6">
+				<label class="form-label small">Time</label>
+			<input type="time" class="form-control" [(ngModel)]="time" />
+			</div>
+		</div>
+
+		<div class="mb-3 mt-3">
+			<label class="form-label small">Duration</label>
+					<select class="form-select" [(ngModel)]="duration">
+				<option>30 minutes</option>
+				<option>1 hour</option>
+				<option>90 minutes</option>
+			</select>
+		</div>
+
+		<div class="mb-3">
+			<label class="form-label small">Notes (optional)</label>
+			<textarea class="form-control" rows="4" placeholder="Any specific topics or questions?" [(ngModel)]="notes"></textarea>
+		</div>
+
+				<div class="d-flex gap-2 justify-content-end mt-3">
+					<button class="btn btn-outline-secondary" (click)="closeModal()">Cancel</button>
+					<button class="btn btn-primary" (click)="confirmBooking()">Confirm Booking</button>
+				</div>
+	</div>
+</div>

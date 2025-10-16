@@ -1,0 +1,20 @@
+<div class="jitsi-backdrop" *ngIf="visible">
+  <div class="jitsi-container card shadow-sm">
+    <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+      <div class="fw-semibold">Live session</div>
+      <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-sm btn-outline-secondary" (click)="copyLink()">Copy link</button>
+        <button class="btn btn-sm btn-outline-primary" (click)="openInNewTab()">Open in new tab</button>
+        <button class="btn btn-sm btn-light" (click)="onClose()">Close</button>
+      </div>
+    </div>
+    <div class="p-2 jitsi-frame-wrap">
+      <ng-container *ngIf="meetingUrl; else noUrl">
+        <iframe [src]="meetingUrlSafe" (load)="onIFrameLoad()" (error)="onIFrameError()" frameborder="0" allow="camera; microphone; autoplay; fullscreen" class="jitsi-iframe"></iframe>
+      </ng-container>
+      <ng-template #noUrl>
+        <div class="p-4 text-center text-muted">Meeting URL not available</div>
+      </ng-template>
+    </div>
+  </div>
+</div>

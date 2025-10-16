@@ -1,0 +1,53 @@
+.brand-icon{
+	width:40px;
+	height:40px;
+	border-radius:8px;
+	background:linear-gradient(135deg,#2b8bf7,#3bb0ff);
+	color:#fff;
+	display:inline-flex;
+	align-items:center;
+	justify-content:center;
+	font-weight:700;
+}
+
+.notification-dot{
+	position:absolute;
+	top:6px;
+	right:6px;
+	width:8px;
+	height:8px;
+	background:#ff3b30;
+	border-radius:50%;
+}
+
+.nav-notifications { position:relative; }
+.notifications-panel{ position:absolute; right:0; top:36px; width:320px; border-radius:10px; overflow:hidden; }
+.notifications-list{ max-height:360px; overflow:auto; }
+.notif-item{ border-bottom:1px solid rgba(15,23,42,0.04); }
+.notif-item:last-child{ border-bottom:none; }
+.notif-dot{ width:10px; height:10px; border-radius:50%; background:#d1d5db; flex:0 0 10px; margin-top:6px; }
+.notif-dot.unread{ background:#10b981; }
+.notif-item .fw-medium{ font-weight:600; }
+.notifications-panel .small.text-decoration-none{ color:#6b7280; }
+
+/* Small responsive tweak for navbar */
+@media (max-width:576px){
+	.notifications-panel{ width:280px; right:8px; }
+	.brand-icon{ width:36px; height:36px; }
+}
+
+/* Global modal backdrop used for Become a Tutor overlay */
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1050; }
+.modal-backdrop .modal-overlay{ max-width:900px; width:100%; padding:20px; }
+
+/* Slightly larger container spacing for dashboard pages */
+.container.py-4{ padding-top:1.5rem; padding-bottom:1.5rem; }
+
+/* Card visual tweaks to match reference */
+.card{ border-radius:14px; }
+.card.shadow-sm{ box-shadow: 0 12px 30px rgba(14,30,37,0.07); }
+
+.fs-4{ font-size:1.25rem; }
+.nav .nav-link { color: #374151; font-weight:600; font-size:1rem; }
+.navbar .btn { font-size:0.95rem; }
+.btn-success { background-color:#10b981; border-color:#10b981; }

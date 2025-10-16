@@ -1,0 +1,47 @@
+<div class="become-root">
+  <div class="card modal-card p-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="auth-icon">🎓</div>
+        <div>
+          <div class="fw-semibold h5 mb-0">Become a Tutor</div>
+        </div>
+      </div>
+  <button class="btn btn-link" (click)="onClose()"><i class="bi bi-x-lg"></i></button>
+    </div>
+
+    <form (ngSubmit)="submit()">
+      <div class="mb-3">
+        <label class="form-label small">Bio</label>
+        <textarea class="form-control" rows="4" [(ngModel)]="bio" name="bio" placeholder="Tell students about your experience and teaching style..."></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label small">Hourly Rate (₹)</label>
+        <input type="number" class="form-control" [(ngModel)]="hourlyRate" name="hourlyRate" />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label small">Subjects You Can Teach</label>
+        <div class="subjects-grid p-2">
+          <button type="button" class="subject-tile" *ngFor="let s of subjects" (click)="toggleSubject(s.name)" [class.selected]="selectedSubjects.includes(s.name)">
+            <div class="fw-semibold">{{ s.name }}</div>
+            <div class="small text-secondary">{{ s.description }}</div>
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="errorMessage" class="mb-2">
+        <div class="text-danger small">{{ errorMessage }}</div>
+      </div>
+
+      <div class="d-flex gap-3 justify-content-end mt-3">
+        <button type="button" class="btn btn-outline-secondary" (click)="onClose()" [disabled]="isSubmitting">Cancel</button>
+        <button type="submit" class="btn btn-success" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          {{ isSubmitting ? 'Submitting...' : 'Become a Tutor' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

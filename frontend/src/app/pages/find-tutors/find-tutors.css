@@ -1,0 +1,35 @@
+.find-root .card{ border-radius:12px; }
+.avatar{ width:56px; height:56px; border-radius:50%; font-weight:700; }
+.avatar.bg-primary{ background:linear-gradient(135deg,#2b8bf7,#3bb0ff); }
+.badge-pill{ display:inline-block; background:#eef6ff; color:#2563eb; padding:6px 10px; border-radius:999px; font-weight:600; }
+.find-root .btn-primary{ padding:10px 18px; border-radius:10px; }
+.find-root .card.shadow-sm{ box-shadow:0 12px 30px rgba(14,30,37,0.06); }
+
+/* Multi-select subjects dropdown */
+/* (Multi-select removed; using native select) */
+
+/* Custom subject select styling to match screenshot */
+.custom-subject { position: relative; padding-left: 44px; border-radius: 12px; }
+.custom-subject::before {
+	content: "\f0b0"; /* filter icon (bootstrap icon glyph code) */
+	font-family: 'bootstrap-icons';
+	position: absolute;
+	left: 14px;
+	top: 50%;
+	transform: translateY(-50%);
+	font-size: 1.05rem;
+	color: #6b7280;
+}
+.custom-subject:focus { box-shadow: 0 0 0 4px rgba(37,99,235,0.12); border-color: #2563eb; }
+
+.custom-select-wrapper { position: relative; }
+.custom-select-wrapper .select-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #6b7280; font-size: 1.05rem; pointer-events: none; }
+.custom-select-wrapper .custom-subject { padding-left: 44px; }
+.custom-select-wrapper .custom-subject:focus { box-shadow: 0 0 0 4px rgba(37,99,235,0.12); border-color: #2563eb; }
+
+/* Booking modal backdrop */
+.modal-backdrop{
+	position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(15,23,42,0.55); display:flex; align-items:center; justify-content:center; z-index:1050;
+}
+.booking-modal{ width:520px; border-radius:12px; }
+.booking-modal .modal-icon{ width:36px; height:36px; background:#eef7ff; color:#0b6ef2; display:flex; align-items:center; justify-content:center; border-radius:8px; font-size:1.15rem; }

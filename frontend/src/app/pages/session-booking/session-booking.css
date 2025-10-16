@@ -1,0 +1,5 @@
+.modal-root{ display:flex; align-items:center; justify-content:center; }
+.modal-card{ width:560px; border-radius:12px; box-shadow:0 18px 40px rgba(14,30,37,0.08); }
+.modal-card .form-control, .modal-card .form-select, .modal-card textarea{ border-radius:8px; padding:10px 12px; }
+.modal-card .auth-icon{ width:44px; height:44px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#2b8bf7,#3bb0ff); color:#fff; }
+.modal-card .btn-primary{ background:#2563eb; border-color:#2563eb; }

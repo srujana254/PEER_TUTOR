@@ -1,0 +1,61 @@
+/* Global styles; Bootstrap is included via angular.json */
+
+/* Using system font stack to avoid remote font fetch during builds */
+html, body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #0f172a; /* slate-900 like color */
+}
+
+/* Slightly larger default font size for parity with reference */
+body { font-size: 16px; font-weight: 400; }
+
+/* Headings and UI titles: slightly tighter letter spacing and stronger weight */
+h1, h2, h3, h4, .dashboard-title, .fs-4 {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+/* Dashboard theme colors and icon cards to match the reference */
+.kpi-card-icon {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+.kpi-blue { background-color: #e8f0ff; color: #0d6efd; }
+.kpi-green { background-color: #e9f9ef; color: #1aa34a; }
+.kpi-orange { background-color: #ffece2; color: #f46a18; }
+.kpi-teal { background-color: #e6faf6; color: #0aa39a; }
+
+.card.shadow-sm { border: none; }
+.progress { height: 10px; }
+
+/* Slight tweaks for headings used on the dashboard */
+.dashboard-title { font-size: 1.6rem; font-weight: 600; }
+
+/* Global page background (soft blue) */
+body {
+  background: linear-gradient(180deg, #f1f7fb 0%, #f6fbff 100%);
+}
+
+/* Main content container spacing */
+.container { max-width: 1100px; }
+
+/* Buttons */
+.btn-primary, .btn-primary:focus, .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+.btn-success { background: #10b981; border-color:#10b981; }
+.btn { border-radius: 10px; }
+
+/* Inputs */
+.form-control { border-radius: 8px; border: 1px solid #e6eef7; padding: 12px 14px; }
+
+/* Badges */
+.badge-pill { background:#eef6ff; color:#2563eb; border-radius:999px; padding:6px 10px; font-weight:600; }
+
+/* Modals - give them larger radius and shadow */
+.modal-content { border-radius:12px; box-shadow: 0 18px 40px rgba(14,30,37,0.08); }
+
