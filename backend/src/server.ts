@@ -44,7 +44,11 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
-
+app.use(cors({
+  origin: 'https://peer-frontend-hscj.onrender.com', // 👈 exact frontend URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
 const port = process.env.PORT || 4000;
 app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
 
