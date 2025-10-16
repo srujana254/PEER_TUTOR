@@ -2,6 +2,7 @@ import { Component, signal, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from './services/auth.service';
+import { environment } from '../environments/environment';
 import { NotificationService } from './services/notification.service';
 import { BecomeTutorPage } from './pages/become-tutor/become-tutor';
 import { ToastsComponent } from './components/toasts/toasts';
@@ -64,7 +65,7 @@ export class App {
 
     // Prefer server join endpoint when we have sessionId + joinToken
     if (data.sessionId && data.joinToken) {
-      const joinUrl = `${location.origin}/api/sessions/${data.sessionId}/join?token=${encodeURIComponent(data.joinToken)}`;
+      const joinUrl = `${environment.apiUrl}/api/sessions/${data.sessionId}/join?token=${encodeURIComponent(data.joinToken)}`;
       try { window.open(joinUrl, '_blank'); } catch {}
       return;
     }

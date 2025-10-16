@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { JitsiModal } from '../../components/jitsi-modal/jitsi-modal';
+import { environment } from '../../../environments/environment';
 import { SessionsService } from '../../services/sessions.service';
 import { ToastService } from '../../services/toast.service';
 import { NotificationService } from '../../services/notification.service';
@@ -123,7 +124,7 @@ export class MySessions {
       // if authenticated, request a short-lived join token from server (single-use) then open the join endpoint
       try {
         this.sessionsService.issueJoin(s._id).subscribe({ next: (res: any) => {
-          const joinUrl = `${location.origin}/api/sessions/${s._id}/join?token=${encodeURIComponent(res.joinToken)}`;
+          const joinUrl = `${environment.apiUrl}/api/sessions/${s._id}/join?token=${encodeURIComponent(res.joinToken)}`;
           try { window.open(joinUrl, '_blank'); } catch { /* ignore */ }
         }, error: () => {
           // fallback to modal/opening meetingUrl if issuing token fails
@@ -270,7 +271,7 @@ export class MySessions {
       // if session has a joinToken, open the server join endpoint instead (so server can verify token)
       const s = this.selectedSession;
       if (s && s._id && s.joinToken) {
-        const joinUrl = `${location.origin}/api/sessions/${s._id}/join?token=${encodeURIComponent(s.joinToken)}`;
+        const joinUrl = `${environment.apiUrl}/api/sessions/${s._id}/join?token=${encodeURIComponent(s.joinToken)}`;
         window.open(joinUrl, '_blank');
         return;
       }

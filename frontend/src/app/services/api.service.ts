@@ -2,11 +2,12 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private http = inject(HttpClient);
-  private baseUrl = (window as any).__API_BASE_URL__ || 'http://localhost:4000/api';
+  private baseUrl = (window as any).__API_BASE_URL__ || `${environment.apiUrl}/api`;
   // Enable a quick local mock by setting `window.__API_BASE_URL__ = 'mock'` in index.html
   private useMock = typeof (window as any).__API_BASE_URL__ !== 'undefined' && (window as any).__API_BASE_URL__ === 'mock';
 

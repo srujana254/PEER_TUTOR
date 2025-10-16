@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output, OnDestroy, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { environment } from '../../../environments/environment';
 import { ToastService } from '../../services/toast.service';
 
 @Component({
@@ -31,7 +32,7 @@ export class JitsiModal {
     if (!this.meetingUrl) return;
     try {
       if (this.sessionId && this.joinToken) {
-        const joinUrl = `${location.origin}/api/sessions/${this.sessionId}/join?token=${encodeURIComponent(this.joinToken)}`;
+        const joinUrl = `${environment.apiUrl}/api/sessions/${this.sessionId}/join?token=${encodeURIComponent(this.joinToken)}`;
         window.open(joinUrl, '_blank');
         return;
       }
