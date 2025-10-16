@@ -32,6 +32,9 @@ mongoose
     process.exit(1);
   });
 
+app.get('/', (_req, res) => {
+  res.send('✅ Backend is live!');
+});
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRoutes);
