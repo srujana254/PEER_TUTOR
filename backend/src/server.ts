@@ -18,8 +18,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+const mongoUri = process.env.MONGO_URI;
+if (!mongoUri) {
+  console.error('Missing MONGO_URI environment variable. Set MONGO_URI in your .env or environment.');
+  process.exit(1);
+}
 
-const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/tutoring_app';
 mongoose
   .connect(mongoUri)
   .then(() => console.log('MongoDB connected'))
