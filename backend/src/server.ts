@@ -15,7 +15,17 @@ import { router as adminRoutes } from './routes/admin.routes';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+// Configure CORS early so it applies to all routes
+const corsOptions = {
+  origin: [
+    'http://localhost:4200',
+    'http://127.0.0.1:4200',
+    'https://peer-frontend-hscj.onrender.com'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(morgan('dev'));
 const mongoUri = process.env.MONGO_URI;
@@ -44,12 +54,23 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
-app.use(cors({
-  origin: 'https://peer-frontend-hscj.onrender.com', // 👈 exact frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
-const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+
+// NOTE: CORS already configured above via corsOptions; do not re-register here.
+const port = Number(process.env.PORT) || 4000;
+// default to IPv4 loopback to avoid IPv6-only binding on some Windows setups
+const bindHost = process.env.BIND_HOST || '127.0.0.1';
+app.listen(port, bindHost, () => {
+  console.log(`Server running on http://${bindHost}:${port}`);
+  try {
+    const os = require('os');
+    const ifaces = os.networkInterfaces();
+    const addrs: string[] = [];
+    Object.values(ifaces).forEach((list: any) => {
+      if (!list) return;
+      list.forEach((i: any) => { if (i && i.address) addrs.push(i.address); });
+    });
+    console.log('Available network addresses:', Array.from(new Set(addrs)).join(', '));
+  } catch (e) {}
+});
 
 

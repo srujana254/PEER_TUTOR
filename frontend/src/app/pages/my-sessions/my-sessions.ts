@@ -246,11 +246,20 @@ export class MySessions {
       this.feedbackSession = null;
       return;
     }
-    this.feedbackSvc.leave(this.feedbackSession._id, this.feedbackSession.tutorId, this.feedbackRating, this.feedbackComment)
+    // Determine tutorId to send: session may contain tutorId (TutorProfile._id) or a populated tutor object
+    const sess: any = this.feedbackSession;
+    const tutorId = sess.tutorId || sess.tutor?._id || sess.tutor?.user?._id || sess.tutor?._id || null;
+    if (!tutorId) {
+      this.toast.push('Unable to determine tutor for this session', 'error');
+      this.feedbackSession = null;
+      return;
+    }
+
+    this.feedbackSvc.leave(this.feedbackSession._id, String(tutorId), this.feedbackRating, this.feedbackComment)
       .subscribe({ next: () => {
         this.feedbackSession = null;
         this.toast.push('Feedback submitted', 'success');
-      }, error: () => this.toast.push('Please sign in to leave feedback', 'error') });
+      }, error: (err: any) => this.toast.push(err?.error?.message || 'Please sign in to leave feedback', 'error') });
   }
 
   getOtherPartyName(s: any) {

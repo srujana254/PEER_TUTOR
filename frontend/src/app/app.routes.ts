@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { StudentDashboard } from './pages/student-dashboard/student-dashboard';
 import { TutorDashboard } from './pages/tutor-dashboard/tutor-dashboard';
+import { DashboardHome } from './pages/dashboard-home/dashboard-home';
 import { FindTutors } from './pages/find-tutors/find-tutors';
 import { MySessions } from './pages/my-sessions/my-sessions';
 import { SessionBooking } from './pages/session-booking/session-booking';
@@ -10,13 +11,14 @@ import { SignInPage } from './pages/signin/signin';
 import { SignUpPage } from './pages/signup/signup';
 import { authGuard } from './guards/auth.guard';
 import { guestGuard } from './guards/guest.guard';
+import { tutorGuard } from './guards/tutor.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
   { path: 'signin', component: SignInPage, canActivate: [guestGuard] },
   { path: 'signup', component: SignUpPage, canActivate: [guestGuard] },
-  { path: 'dashboard', component: StudentDashboard, canActivate: [authGuard] },
-  { path: 'tutor', component: TutorDashboard, canActivate: [authGuard] },
+  { path: 'dashboard', component: DashboardHome, canActivate: [authGuard] },
+  { path: 'tutor', component: TutorDashboard, canActivate: [authGuard, tutorGuard] },
   { path: 'find', component: FindTutors, canActivate: [authGuard] },
   { path: 'sessions', component: MySessions, canActivate: [authGuard] },
   { path: 'booking', component: SessionBooking, canActivate: [authGuard] },

@@ -18,6 +18,16 @@ export class StudentDashboard {
     completionRate: 0
   };
 
+  get hasTutorFlag(): boolean {
+    try {
+      const u = localStorage.getItem('user');
+      const user = u ? JSON.parse(u) : null;
+      return !!user?.isTutor;
+    } catch {
+      return false;
+    }
+  }
+
   ngOnInit() {
     this.dashboardService.getStudentStats().subscribe((res) => {
       this.stats = {

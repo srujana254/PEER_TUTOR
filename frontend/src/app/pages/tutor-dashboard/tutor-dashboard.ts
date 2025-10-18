@@ -19,6 +19,8 @@ export class TutorDashboard {
   private toast = inject(ToastService);
   stats = { total: 0, completed: 0, upcoming: 0, students: 0, avgRating: 0 };
   isTutor = false;
+  // optimistic local flag read from localStorage to avoid UI flips
+  localIsTutor = this.localFlag();
   loading = true;
 
   // Become tutor form
@@ -29,27 +31,39 @@ export class TutorDashboard {
   submitting = false;
 
   ngOnInit() {
-    // Check if user is already a tutor
+    // Load subjects for the form
+    this.tutors.listSubjects().subscribe((subs) => this.subjects = subs || []);
+
+    // Load tutor info once (server authoritative). We keep loading=true until we have a response.
+    const loadStats = () => {
+      this.sessions.list('tutor').subscribe((list: any[]) => {
+        const now = new Date();
+        this.stats.total = list.length;
+        this.stats.completed = list.filter(s => s.status === 'completed').length;
+        this.stats.upcoming = list.filter(s => s.status === 'scheduled' && new Date(s.scheduledAt) > now).length;
+        this.stats.students = new Set(list.map(s => s.studentId)).size;
+      });
+    };
+
     this.tutors.me().subscribe({
       next: (tp) => {
         this.isTutor = !!tp;
         this.stats.avgRating = tp?.averageRating || 0;
+        if (this.isTutor) loadStats();
+        this.loading = false;
       },
-      error: () => (this.isTutor = false),
-      complete: () => (this.loading = false)
+      error: () => { this.isTutor = false; this.loading = false; }
     });
+  }
 
-    // Load tutor stats if tutor
-    this.sessions.list('tutor').subscribe((list: any[]) => {
-      const now = new Date();
-      this.stats.total = list.length;
-      this.stats.completed = list.filter(s => s.status === 'completed').length;
-      this.stats.upcoming = list.filter(s => s.status === 'scheduled' && new Date(s.scheduledAt) > now).length;
-      this.stats.students = new Set(list.map(s => s.studentId)).size;
-    });
-
-    // Load subjects for the form
-    this.tutors.listSubjects().subscribe((subs) => this.subjects = subs || []);
+  localFlag() {
+    try {
+      const u = localStorage.getItem('user');
+      const user = u ? JSON.parse(u) : null;
+      return !!user?.isTutor;
+    } catch {
+      return false;
+    }
   }
 
   toggleSubject(s: string) {
@@ -68,7 +82,15 @@ export class TutorDashboard {
         next: () => {
           this.isTutor = true;
           this.submitting = false;
-          this.router.navigateByUrl('/find');
+            // update local user record so client immediately reflects tutor state
+            try {
+              const u = localStorage.getItem('user');
+              const user = u ? JSON.parse(u) : {};
+              user.isTutor = true;
+              localStorage.setItem('user', JSON.stringify(user));
+            } catch (e) {}
+            try { localStorage.setItem('dashboardView', 'tutor'); } catch {}
+            this.router.navigateByUrl('/dashboard');
         },
         error: () => {
           this.submitting = false;
