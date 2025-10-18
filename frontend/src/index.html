@@ -11,8 +11,13 @@
     // During local UI work, set this to 'mock' to use the built-in dev mock API.
     // To override in production or to use a real backend, set window.__API_BASE_URL__ before the app boots.
     if (typeof window.__API_BASE_URL__ === 'undefined') {
-      // default to local backend during development. Set to 'mock' only when backend is unavailable.
-      window.__API_BASE_URL__ = 'http://localhost:4000/api';
+      // Only set a sensible default when running locally (serve/localhost).
+      try {
+        const host = window.location.hostname;
+        if (host === 'localhost' || host === '127.0.0.1') {
+          window.__API_BASE_URL__ = 'http://localhost:4000/api';
+        }
+      } catch (e) {}
     }
   </script>
 </head>

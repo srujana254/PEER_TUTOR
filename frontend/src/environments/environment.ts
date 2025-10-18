@@ -1,4 +1,5 @@
 export const environment = {
-  production: true,
-  apiUrl: 'https://peer-backend-6ajt.onrender.com'
+  production: false,
+  // Local development backend
+  apiUrl: 'http://localhost:4000'
 };
