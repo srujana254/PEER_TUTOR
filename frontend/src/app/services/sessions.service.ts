@@ -33,6 +33,14 @@ export class SessionsService {
     return this.api.post<{ joinToken: string; expiresAt: string }>(`/sessions/${sessionId}/issue-join`, {});
   }
 
+  update(sessionId: string, changes: { subject?: string; scheduledAt?: string; durationMinutes?: number; notes?: string }) {
+    return this.api.put(`/sessions/${sessionId}`, changes);
+  }
+
+  delete(sessionId: string) {
+    return this.api.delete(`/sessions/${sessionId}`);
+  }
+
   byTutor(tutorId: string) {
     return this.api.get<any[]>(`/sessions/tutor/${tutorId}`);
   }

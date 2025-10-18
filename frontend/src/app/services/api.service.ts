@@ -43,6 +43,18 @@ export class ApiService {
     const headers = token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
     return this.http.get<T>(`${this.baseUrl}${path}`, headers ? { headers } : {});
   }
+
+  put<T>(path: string, body: any) {
+    const token = localStorage.getItem('token');
+    const headers = token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
+    return this.http.put<T>(`${this.baseUrl}${path}`, body, headers ? { headers } : {});
+  }
+
+  delete<T>(path: string) {
+    const token = localStorage.getItem('token');
+    const headers = token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
+    return this.http.delete<T>(`${this.baseUrl}${path}`, headers ? { headers } : {});
+  }
 }
 
 

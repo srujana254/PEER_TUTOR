@@ -53,6 +53,9 @@
                 <button *ngIf="!isTutorForSession(s) && (s.status === 'in-progress' || s.meetingUrl) && !isSessionEnded(s)" class="btn btn-outline-success btn-sm ms-2" (click)="joinSession(s)">Join Session</button>
                 <span *ngIf="isSessionEnded(s)" class="badge bg-secondary ms-2">Session ended</span>
                 <button *ngIf="!isTutorForSession(s) && isWaitingForTutor(s)" class="btn btn-outline-secondary btn-sm ms-2" disabled>Waiting for tutor</button>
+                <!-- Allow students to edit or delete their upcoming scheduled sessions -->
+                <button *ngIf="!isTutorForSession(s) && s.status === 'scheduled' && !isSessionEnded(s)" class="btn btn-outline-secondary btn-sm ms-2" (click)="openEdit(s)">Edit</button>
+                <button *ngIf="!isTutorForSession(s) && s.status === 'scheduled' && !isSessionEnded(s)" class="btn btn-outline-danger btn-sm ms-2" (click)="deleteSession(s)">Delete</button>
               </div>
             </div>
           </div>
@@ -97,6 +100,41 @@
           <button class="btn btn-outline-secondary" (click)="feedbackSession = null">Cancel</button>
           <button class="btn btn-primary" (click)="submitFeedback()">Submit</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit session modal -->
+  <div class="feedback-backdrop" *ngIf="editingSession">
+    <div class="feedback-modal card p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="fw-semibold">Edit Session</div>
+        <button class="btn-close" (click)="cancelEdit()"></button>
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label small">Subject</label>
+        <input class="form-control" [(ngModel)]="editSubject" />
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label small">When</label>
+        <input type="datetime-local" class="form-control" [(ngModel)]="editScheduledAt" />
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label small">Duration (minutes)</label>
+        <input type="number" min="15" class="form-control" [(ngModel)]="editDuration" />
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label small">Notes</label>
+        <textarea class="form-control" rows="3" [(ngModel)]="editNotes"></textarea>
+      </div>
+
+      <div class="d-flex gap-2 justify-content-end">
+        <button class="btn btn-outline-secondary" (click)="cancelEdit()">Cancel</button>
+        <button class="btn btn-primary" (click)="saveEdit()">Save</button>
       </div>
     </div>
   </div>

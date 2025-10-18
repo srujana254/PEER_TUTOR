@@ -283,4 +283,58 @@ export async function issueJoinToken(req: AuthRequest, res: Response) {
   res.json({ joinToken: shortToken, expiresAt });
 }
 
+export async function updateSession(req: AuthRequest, res: Response) {
+  const userId = req.userId!;
+  const { id } = req.params;
+  const { subject, scheduledAt, durationMinutes, notes } = req.body as { subject?: string; scheduledAt?: string; durationMinutes?: number; notes?: string };
+  const session = await Session.findById(id);
+  if (!session) return res.status(404).json({ message: 'Session not found' });
+  // Only the student who booked can update (and only if not started/completed/cancelled)
+  if (String(session.studentId) !== String(userId)) return res.status(403).json({ message: 'Not authorized to update this session' });
+  if (session.status !== 'scheduled') return res.status(400).json({ message: 'Only scheduled sessions can be updated' });
+
+  // If changing time, ensure no conflict
+  let start = session.scheduledAt;
+  if (scheduledAt) start = new Date(scheduledAt);
+  const duration = durationMinutes ?? session.durationMinutes ?? 60;
+  const end = new Date(start.getTime() + duration * 60000);
+
+  const conflict = await Session.findOne({
+    _id: { $ne: session._id },
+    status: { $ne: 'cancelled' },
+    $or: [ { tutorId: session.tutorId }, { studentId: userId } ],
+    $expr: {
+      $and: [
+        { $lt: ['$scheduledAt', end] },
+        { $gt: [{ $add: ['$scheduledAt', { $multiply: ['$durationMinutes', 60000] }] }, start] }
+      ]
+    }
+  });
+  if (conflict) return res.status(409).json({ message: 'Time slot not available' });
+
+  if (subject) session.subject = subject;
+  session.scheduledAt = start;
+  session.durationMinutes = duration;
+  if (notes !== undefined) session.notes = notes;
+  await session.save();
+  // notify tutor of update
+  try { await Notification.create({ userId: session.tutorId as any, type: 'session_updated', data: { sessionId: session._id } }); } catch (e) {}
+  res.json(session);
+}
+
+export async function deleteSession(req: AuthRequest, res: Response) {
+  const userId = req.userId!;
+  const { id } = req.params;
+  const session = await Session.findById(id);
+  if (!session) return res.status(404).json({ message: 'Session not found' });
+  // Only the booking student can delete/ cancel before it starts
+  if (String(session.studentId) !== String(userId)) return res.status(403).json({ message: 'Not authorized to delete this session' });
+  if (session.status !== 'scheduled') return res.status(400).json({ message: 'Only scheduled sessions can be deleted' });
+
+  session.status = 'cancelled' as any;
+  await session.save();
+  try { await Notification.create({ userId: session.tutorId as any, type: 'session_cancelled', data: { sessionId: session._id } }); } catch (e) {}
+  res.json({ success: true, session });
+}
+
 

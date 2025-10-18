@@ -35,6 +35,12 @@ export class MySessions {
   jitsiJoinToken: string | null = null;
   // details overlay
   selectedSession: any = null;
+  // editing state
+  editingSession: any = null;
+  editSubject = '';
+  editScheduledAt = '';
+  editDuration = 60;
+  editNotes = '';
   // notification subscription and periodic refresh
   private notifSub: Subscription | null = null;
   private refreshTimer: any = null;
@@ -231,6 +237,46 @@ export class MySessions {
     this.feedbackSession = s;
     this.feedbackRating = 5;
     this.feedbackComment = '';
+  }
+
+  openEdit(s: any) {
+    this.editingSession = { ...s };
+    this.editSubject = s.subject || '';
+    // ISO string without seconds for easy editing in datetime-local
+    try { this.editScheduledAt = new Date(s.scheduledAt).toISOString().slice(0,16); } catch { this.editScheduledAt = ''; }
+    this.editDuration = s.durationMinutes || s.duration || 60;
+    this.editNotes = s.notes || '';
+  }
+
+  saveEdit() {
+    if (!this.editingSession) return;
+    const id = this.editingSession._id;
+  const payload: any = { subject: this.editSubject, durationMinutes: Number(this.editDuration), notes: this.editNotes };
+  if (this.editScheduledAt) payload.scheduledAt = new Date(this.editScheduledAt).toISOString();
+  this.sessionsService.update(id, payload)
+      .subscribe({ next: (res: any) => {
+        this.toast.push('Session updated', 'success');
+        this.editingSession = null;
+        this.reloadSessions();
+      }, error: (err: any) => {
+        this.toast.push(err?.error?.message || 'Failed to update session', 'error');
+      } });
+  }
+
+  cancelEdit() {
+    this.editingSession = null;
+  }
+
+  confirmDelete(s: any) {
+    // no-op (deprecated)
+  }
+
+  deleteSession(s: any) {
+    if (!s || !s._id) return;
+    this.sessionsService.delete(s._id).subscribe({ next: () => {
+      this.toast.push('Session deleted', 'info');
+      this.reloadSessions();
+    }, error: (err: any) => this.toast.push(err?.error?.message || 'Failed to delete session', 'error') });
   }
 
   viewDetails(s: any) {
