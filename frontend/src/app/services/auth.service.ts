@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { ApiService } from './api.service';
-import { tap } from 'rxjs/operators';
+import { tap, switchMap } from 'rxjs/operators';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -18,7 +18,11 @@ export class AuthService {
   }
 
   signUp(email: string, password: string, fullName: string) {
-    return this.api.post('/auth/signup', { email, password, fullName });
+    // Perform signup then immediately sign in so the app receives and stores the
+    // authentication token and user object. Caller will receive the signIn result.
+    return this.api.post('/auth/signup', { email, password, fullName }).pipe(
+      switchMap(() => this.signIn(email, password))
+    );
   }
 
   signOut() {

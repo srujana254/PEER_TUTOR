@@ -22,6 +22,7 @@ const app = express();
 const rawFrontendOrigins = process.env.FRONTEND_ORIGINS || 'https://peer-frontend-hscj.onrender.com';
 const allowedOrigins = rawFrontendOrigins.split(',').map(s => s.trim()).filter(Boolean);
 const allowAll = String(process.env.FRONTEND_ALLOW_ALL || '').toLowerCase() === 'true';
+const isDev = String(process.env.NODE_ENV || '').toLowerCase() !== 'production';
 
 const corsOptions = {
   origin: function (origin: any, callback: any) {
@@ -29,8 +30,20 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     if (allowAll) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    // In development, also allow local dev origins (localhost / 127.0.0.1)
+    if (isDev) {
+      try {
+        const host = origin.split('://')[1];
+        if (host && (host.startsWith('localhost') || host.startsWith('127.0.0.1'))) {
+          console.debug('CORS allowing dev origin:', origin);
+          return callback(null, true);
+        }
+      } catch (e) {
+        // fall-through to block
+      }
+    }
     console.warn('CORS blocked request from origin:', origin);
-    return callback(null, false);
+    return callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true

@@ -26,7 +26,10 @@ export class SignUpPage {
     this.loading = true;
     this.error = '';
     this.auth.signUp(this.email, this.password, this.fullName).subscribe({
-      next: () => this.router.navigateByUrl('/signin'),
+      next: () => {
+        // signUp now signs in automatically and stores token/user; send user to dashboard
+        this.router.navigateByUrl('/dashboard');
+      },
       error: (err: any) => {
         // surface server-provided message if available
         const msg = err?.error?.message || err?.message || 'Sign up failed';
