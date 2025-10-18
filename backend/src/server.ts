@@ -16,16 +16,27 @@ dotenv.config();
 
 const app = express();
 // Configure CORS early so it applies to all routes
+// FRONTEND_ORIGINS can be a comma-separated list of allowed origins, e.g.
+// FRONTEND_ORIGINS="https://peer-frontend-hscj.onrender.com,https://peer-frontend-other.onrender.com"
+// Set FRONTEND_ALLOW_ALL=true to allow all origins (use only for quick testing)
+const rawFrontendOrigins = process.env.FRONTEND_ORIGINS || 'https://peer-frontend-hscj.onrender.com';
+const allowedOrigins = rawFrontendOrigins.split(',').map(s => s.trim()).filter(Boolean);
+const allowAll = String(process.env.FRONTEND_ALLOW_ALL || '').toLowerCase() === 'true';
+
 const corsOptions = {
-  origin: [
-    'http://localhost:4200',
-    'http://127.0.0.1:4200',
-    'https://peer-frontend-hscj.onrender.com'
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin: function (origin: any, callback: any) {
+    // allow requests with no origin (like curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowAll) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    console.warn('CORS blocked request from origin:', origin);
+    return callback(null, false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 };
 app.use(cors(corsOptions));
+console.log('CORS configured. allowedOrigins=', allowedOrigins, 'allowAll=', allowAll);
 app.use(express.json());
 app.use(morgan('dev'));
 const mongoUri = process.env.MONGO_URI;
@@ -58,7 +69,8 @@ app.use('/api/admin', adminRoutes);
 // NOTE: CORS already configured above via corsOptions; do not re-register here.
 const port = Number(process.env.PORT) || 4000;
 // default to IPv4 loopback to avoid IPv6-only binding on some Windows setups
-const bindHost = process.env.BIND_HOST || '127.0.0.1';
+// default to 0.0.0.0 for deployments; set BIND_HOST=127.0.0.1 locally if you need IPv4 loopback only
+const bindHost = process.env.BIND_HOST || '0.0.0.0';
 app.listen(port, bindHost, () => {
   console.log(`Server running on http://${bindHost}:${port}`);
   try {
