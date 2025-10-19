@@ -71,6 +71,7 @@ export class DashboardHome {
     if (v === 'tutor' && !this.hasTutorRole) return;
     this.activeView = v;
     try { localStorage.setItem('dashboardView', v); } catch {}
+    // no global event dispatch — views are stored in localStorage and pages read from that or local toggles
   }
 
   get viewingLabel() {

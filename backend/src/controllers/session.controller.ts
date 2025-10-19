@@ -28,10 +28,19 @@ export async function listSessions(req: AuthRequest, res: Response) {
     filter.studentId = userId;
   }
   if (status) filter.status = status;
-  const sessions = await Session.find(filter).sort({ scheduledAt: -1 }).populate({ path: 'studentId', select: 'fullName' }).lean();
-  // attach a top-level studentName for ease of consumption by the frontend
+  const sessions = await Session.find(filter)
+    .sort({ scheduledAt: -1 })
+    .populate({ path: 'studentId', select: 'fullName' })
+    .populate({ path: 'tutorId', populate: { path: 'userId', select: 'fullName' }, select: 'name userId' })
+    .lean();
+  // attach top-level studentName and tutorName for ease of consumption by the frontend
   const out = sessions.map((s: any) => {
-    return { ...s, studentName: (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null) };
+    const studentName = (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null);
+    let tutorName = null;
+    try {
+      tutorName = s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null;
+    } catch (e) { tutorName = s.tutorName || null; }
+    return { ...s, studentName, tutorName };
   });
   res.json(out);
 }
@@ -79,10 +88,22 @@ export async function bookSession(req: AuthRequest, res: Response) {
 
 export async function completeSession(req: AuthRequest, res: Response) {
   const { id } = req.params;
-  const session = await Session.findByIdAndUpdate(id, { status: 'completed' }, { new: true });
-  if (session) {
-    await Notification.create({ userId: session.studentId, type: 'session_completed', data: { sessionId: session._id } });
-  }
+  const userId = req.userId!;
+  const session = await Session.findById(id);
+  if (!session) return res.status(404).json({ message: 'Session not found' });
+  // allow only the tutor or the student to mark complete
+  let allowed = false;
+  try {
+    const tutorProfile = await TutorProfile.findById(session.tutorId);
+    const tutorUserId = tutorProfile ? String(tutorProfile.userId) : String(session.tutorId);
+    if (String(userId) === String(tutorUserId)) allowed = true;
+  } catch (e) {}
+  if (String(userId) === String(session.studentId)) allowed = true;
+  if (!allowed) return res.status(403).json({ message: 'Not authorized to complete this session' });
+
+  session.status = 'completed' as any;
+  await session.save();
+  try { await Notification.create({ userId: session.studentId, type: 'session_completed', data: { sessionId: session._id } }); } catch (e) {}
   res.json(session);
 }
 
@@ -97,15 +118,31 @@ export async function cancelSession(req: AuthRequest, res: Response) {
 
 export async function sessionsByTutor(req: AuthRequest, res: Response) {
   const { tutorId } = req.params;
-  const list = await Session.find({ tutorId }).sort({ scheduledAt: -1 }).populate({ path: 'studentId', select: 'fullName' }).lean();
-  const out = list.map((s: any) => ({ ...s, studentName: (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null) }));
+  const list = await Session.find({ tutorId })
+    .sort({ scheduledAt: -1 })
+    .populate({ path: 'studentId', select: 'fullName' })
+    .populate({ path: 'tutorId', populate: { path: 'userId', select: 'fullName' }, select: 'name userId' })
+    .lean();
+  const out = list.map((s: any) => ({
+    ...s,
+    studentName: (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null),
+    tutorName: s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null
+  }));
   res.json(out);
 }
 
 export async function sessionsByStudent(req: AuthRequest, res: Response) {
   const { studentId } = req.params;
-  const list = await Session.find({ studentId }).sort({ scheduledAt: -1 }).populate({ path: 'studentId', select: 'fullName' }).lean();
-  const out = list.map((s: any) => ({ ...s, studentName: (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null) }));
+  const list = await Session.find({ studentId })
+    .sort({ scheduledAt: -1 })
+    .populate({ path: 'studentId', select: 'fullName' })
+    .populate({ path: 'tutorId', populate: { path: 'userId', select: 'fullName' }, select: 'name userId' })
+    .lean();
+  const out = list.map((s: any) => ({
+    ...s,
+    studentName: (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null),
+    tutorName: s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null
+  }));
   res.json(out);
 }
 

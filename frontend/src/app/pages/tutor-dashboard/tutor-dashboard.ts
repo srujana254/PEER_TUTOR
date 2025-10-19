@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { TutorsService } from '../../services/tutors.service';
 import { ToastService } from '../../services/toast.service';
 import { SessionsService } from '../../services/sessions.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-tutor-dashboard',
@@ -17,6 +18,8 @@ export class TutorDashboard {
   private sessions = inject(SessionsService);
   private router = inject(Router);
   private toast = inject(ToastService);
+  private notificationsSvc = inject(NotificationService);
+  private notifSub: any = null;
   stats = { total: 0, completed: 0, upcoming: 0, students: 0, avgRating: 0 };
   isTutor = false;
   // optimistic local flag read from localStorage to avoid UI flips
@@ -54,6 +57,21 @@ export class TutorDashboard {
       },
       error: () => { this.isTutor = false; this.loading = false; }
     });
+
+    // subscribe to notifications so tutor view updates when students book/update/cancel
+    try {
+      this.notifSub = this.notificationsSvc.notifications$.subscribe((list: any[]) => {
+        if (!list || !Array.isArray(list)) return;
+        const interesting = list.some(n => n && (n.type === 'session_booked' || n.type === 'session_updated' || n.type === 'session_cancelled' || n.type === 'session_started'));
+        if (interesting) {
+          try { loadStats(); } catch (e) {}
+        }
+      });
+    } catch (e) {}
+  }
+
+  ngOnDestroy() {
+    try { this.notifSub?.unsubscribe(); } catch (e) {}
   }
 
   localFlag() {

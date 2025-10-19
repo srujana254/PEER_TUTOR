@@ -22,6 +22,8 @@ export class MySessions {
   private feedbackSvc = inject(FeedbackService);
   sessions: any[] = [];
   filter: 'all' | 'upcoming' | 'past' = 'past';
+  // view mode: 'student' or 'tutor'
+  sessionsView: 'student' | 'tutor' = 'student';
   // how many minutes before scheduled time should we show a 'waiting' state
   preStartWindowMinutes = 15;
   feedbackSession: any = null;
@@ -44,6 +46,7 @@ export class MySessions {
   // notification subscription and periodic refresh
   private notifSub: Subscription | null = null;
   private refreshTimer: any = null;
+  private dashboardViewHandler: any = null;
 
   get currentUser() {
     try {
@@ -180,6 +183,10 @@ export class MySessions {
   }
 
   ngOnInit() {
+    try {
+      const stored = localStorage.getItem('sessionsView');
+      if (stored === 'student' || stored === 'tutor') this.sessionsView = stored;
+    } catch (e) {}
     this.reloadSessions();
     // reload when we receive a session_started notification so Join becomes visible quickly
     try {
@@ -196,12 +203,18 @@ export class MySessions {
   ngOnDestroy() {
     try { this.notifSub?.unsubscribe(); } catch (e) {}
     try { if (this.refreshTimer) clearInterval(this.refreshTimer); } catch (e) {}
+    // removed dashboard view event subscription
   }
 
   reloadSessions() {
-    const user = this.currentUser;
-    const role: 'tutor' | 'student' = user && user.isTutor ? 'tutor' : 'student';
+    const role: 'tutor' | 'student' = this.sessionsView === 'tutor' ? 'tutor' : 'student';
     this.sessionsService.list(role).subscribe({ next: (list) => this.sessions = list || [], error: () => {} });
+  }
+
+  setSessionsView(v: 'student' | 'tutor') {
+    this.sessionsView = v;
+    try { localStorage.setItem('sessionsView', v); } catch (e) {}
+    this.reloadSessions();
   }
 
   setFilter(f: 'all' | 'upcoming' | 'past') {
@@ -279,6 +292,14 @@ export class MySessions {
     }, error: (err: any) => this.toast.push(err?.error?.message || 'Failed to delete session', 'error') });
   }
 
+  markComplete(s: any) {
+    if (!s || !s._id) return;
+    this.sessionsService.complete(s._id).subscribe({ next: (res: any) => {
+      this.toast.push('Session marked complete', 'success');
+      this.reloadSessions();
+    }, error: (err: any) => this.toast.push(err?.error?.message || 'Failed to mark complete', 'error') });
+  }
+
   viewDetails(s: any) {
     // open details overlay
     this.selectedSession = s;
@@ -317,7 +338,46 @@ export class MySessions {
       return s.student?.fullName || s.studentName || (s.studentId ? String(s.studentId).slice(-6) : 'Student');
     }
     // show tutor name
-    return s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || 'Tutor';
+    return this.getTutorName(s);
+  }
+
+  // helper to consistently resolve a tutor's display name for templates
+  getTutorName(s: any) {
+    try {
+      if (!s) return 'Tutor';
+      // Try multiple shapes the backend might return:
+      // - session.tutor.user.fullName
+      // - session.tutor.fullName / tutor.name
+      // - session.tutorId.userId.fullName (older population shape)
+      // - top-level session.tutorName provided by the controller
+      const candidates = [
+        s.tutor?.user?.fullName,
+        s.tutor?.user?.full_name,
+        s.tutor?.fullName,
+        s.tutor?.name,
+        s.tutorName,
+        s.tutorId?.userId?.fullName,
+        s.tutorId?.user?.fullName,
+        s.tutorId?.fullName,
+        s.tutorId?._id
+      ];
+      for (const c of candidates) {
+        if (c && typeof c === 'string' && c.trim()) return c;
+      }
+      return 'Tutor';
+    } catch (e) { return 'Tutor'; }
+  }
+
+  // derive initials for avatar from the tutor name (fallback to 'T')
+  getTutorInitials(s: any) {
+    try {
+      const name = this.getTutorName(s);
+      if (!name || typeof name !== 'string') return 'T';
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return 'T';
+      if (parts.length === 1) return parts[0].slice(0,1).toUpperCase();
+      return (parts[0].slice(0,1) + parts[parts.length-1].slice(0,1)).toUpperCase();
+    } catch (e) { return 'T'; }
   }
 
   openExternal(url: string | null) {
