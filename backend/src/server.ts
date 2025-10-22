@@ -3,6 +3,13 @@ import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import { createServer } from 'http';
+import * as socketio from 'socket.io';
+// socket.io types sometimes don't line up with transpilation settings across projects.
+// Use a resilient runtime import: prefer the exported Server class but fall back to the
+// namespace object when necessary.
+const IOServer: any = (socketio as any).Server || (socketio as any).default || socketio;
+import { setIo } from './lib/socket';
 
 import { router as authRoutes } from './routes/auth.routes';
 import { router as tutorRoutes } from './routes/tutor.routes';
@@ -84,7 +91,20 @@ const port = Number(process.env.PORT) || 4000;
 // default to IPv4 loopback to avoid IPv6-only binding on some Windows setups
 // default to 0.0.0.0 for deployments; set BIND_HOST=127.0.0.1 locally if you need IPv4 loopback only
 const bindHost = process.env.BIND_HOST || '0.0.0.0';
-app.listen(port, bindHost, () => {
+
+// create an HTTP server and attach Socket.IO to it
+const httpServer = createServer(app);
+const io = new IOServer(httpServer, {
+  cors: {
+    origin: allowAll ? true : allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true
+  }
+});
+// store io instance for use in controllers
+setIo(io);
+
+httpServer.listen(port, bindHost, () => {
   console.log(`Server running on http://${bindHost}:${port}`);
   try {
     const os = require('os');

@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { Session } from '../models/Session';
 import { TutorProfile } from '../models/TutorProfile';
 import { Notification } from '../models/Notification';
+import { Feedback } from '../models/Feedback';
 import jwt from 'jsonwebtoken';
 import { IssuedToken } from '../models/IssuedToken';
 import { JoinLog } from '../models/JoinLog';
@@ -34,13 +35,18 @@ export async function listSessions(req: AuthRequest, res: Response) {
     .populate({ path: 'tutorId', populate: { path: 'userId', select: 'fullName' }, select: 'name userId' })
     .lean();
   // attach top-level studentName and tutorName for ease of consumption by the frontend
+  const sessionIds = sessions.map((s: any) => String(s._id));
+  // find feedbacks by this user for these sessions
+  const feedbacks = await Feedback.find({ sessionId: { $in: sessionIds }, userId }).select('sessionId').lean();
+  const feedbackSet = new Set(feedbacks.map((f: any) => String(f.sessionId)));
   const out = sessions.map((s: any) => {
     const studentName = (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null);
     let tutorName = null;
     try {
       tutorName = s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null;
     } catch (e) { tutorName = s.tutorName || null; }
-    return { ...s, studentName, tutorName };
+    const hasFeedback = feedbackSet.has(String(s._id));
+    return { ...s, studentName, tutorName, hasFeedback };
   });
   res.json(out);
 }
@@ -123,10 +129,16 @@ export async function sessionsByTutor(req: AuthRequest, res: Response) {
     .populate({ path: 'studentId', select: 'fullName' })
     .populate({ path: 'tutorId', populate: { path: 'userId', select: 'fullName' }, select: 'name userId' })
     .lean();
+  // annotate hasFeedback for the requesting user if present
+  const userId = req.userId || null;
+  const sessionIds = list.map((s: any) => String(s._id));
+  const feedbacks = userId ? await Feedback.find({ sessionId: { $in: sessionIds }, userId }).select('sessionId').lean() : [];
+  const feedbackSet = new Set(feedbacks.map((f: any) => String(f.sessionId)));
   const out = list.map((s: any) => ({
     ...s,
     studentName: (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null),
-    tutorName: s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null
+    tutorName: s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null,
+    hasFeedback: userId ? feedbackSet.has(String(s._id)) : false
   }));
   res.json(out);
 }
@@ -138,10 +150,15 @@ export async function sessionsByStudent(req: AuthRequest, res: Response) {
     .populate({ path: 'studentId', select: 'fullName' })
     .populate({ path: 'tutorId', populate: { path: 'userId', select: 'fullName' }, select: 'name userId' })
     .lean();
+  const userId = req.userId || null;
+  const sessionIds = list.map((s: any) => String(s._id));
+  const feedbacks = userId ? await Feedback.find({ sessionId: { $in: sessionIds }, userId }).select('sessionId').lean() : [];
+  const feedbackSet = new Set(feedbacks.map((f: any) => String(f.sessionId)));
   const out = list.map((s: any) => ({
     ...s,
     studentName: (s.studentId && s.studentId.fullName) ? s.studentId.fullName : (s.studentName || null),
-    tutorName: s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null
+    tutorName: s.tutor?.user?.fullName || s.tutor?.name || s.tutorName || null,
+    hasFeedback: userId ? feedbackSet.has(String(s._id)) : false
   }));
   res.json(out);
 }
