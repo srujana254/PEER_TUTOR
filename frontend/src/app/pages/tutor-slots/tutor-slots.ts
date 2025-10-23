@@ -137,7 +137,25 @@ export class TutorSlots implements OnInit {
     if (Number.isNaN(sh) || Number.isNaN(sm)) return this.toast.push('Invalid start time', 'info');
     // prevent creating slots in the past
     try {
-      const start = new Date(`${this.date}T${this.startTime}`);
+      // parse date which may be in YYYY-MM-DD or DD-MM-YYYY
+      const parseDate = (dateStr: string) => {
+        const parts = (dateStr || '').split('-').map(s => s.trim());
+        if (parts.length !== 3) return null;
+        let y = Number(parts[0]);
+        let m = Number(parts[1]);
+        let d = Number(parts[2]);
+        // if first part looks like day (e.g., 23-10-2025), assume DD-MM-YYYY
+        if (parts[0].length !== 4) {
+          d = Number(parts[0]);
+          m = Number(parts[1]);
+          y = Number(parts[2]);
+        }
+        if ([y, m, d].some(v => Number.isNaN(v))) return null;
+        return { y, m, d };
+      };
+      const dateParts = parseDate(this.date);
+      if (!dateParts) return this.toast.push('Invalid date', 'info');
+      const start = new Date(dateParts.y, dateParts.m - 1, dateParts.d, sh, sm, 0, 0);
       if (start.getTime() < Date.now()) return this.toast.push('Cannot create slots in the past', 'info');
     } catch (e) {}
     let endTime: string;
@@ -145,19 +163,61 @@ export class TutorSlots implements OnInit {
       if (!this.endTime) return this.toast.push('Enter end time', 'info');
       const [eh, em] = (this.endTime || '').split(':').map((x: any) => Number(x));
       if (Number.isNaN(eh) || Number.isNaN(em)) return this.toast.push('Invalid end time', 'info');
-      const start = new Date(`${this.date}T${this.startTime}`);
-      const end = new Date(`${this.date}T${this.endTime}`);
+      // compute start/end as ISO instants
+      const parseDate = (dateStr: string) => {
+        const parts = (dateStr || '').split('-').map(s => s.trim());
+        if (parts.length !== 3) return null;
+        let y = Number(parts[0]);
+        let m = Number(parts[1]);
+        let d = Number(parts[2]);
+        if (parts[0].length !== 4) { d = Number(parts[0]); m = Number(parts[1]); y = Number(parts[2]); }
+        if ([y, m, d].some(v => Number.isNaN(v))) return null;
+        return { y, m, d };
+      };
+      const dateParts = parseDate(this.date);
+      if (!dateParts) return this.toast.push('Invalid date', 'info');
+      const start = new Date(dateParts.y, dateParts.m - 1, dateParts.d, sh, sm, 0, 0);
+      const end = new Date(dateParts.y, dateParts.m - 1, dateParts.d, eh, em, 0, 0);
       if (end <= start) return this.toast.push('End time must be after start time', 'info');
       endTime = this.endTime;
     } else {
       if (!this.availabilityHours) return this.toast.push('Fill all fields', 'info');
-      const start = new Date(`${this.date}T${this.startTime}`);
+      // compute start and end via parsed date parts
+      const parts = (this.date || '').split('-').map(s => s.trim());
+      let y = Number(parts[0]);
+      let m = Number(parts[1]);
+      let d = Number(parts[2]);
+      if (parts[0] && parts[0].length !== 4) { d = Number(parts[0]); m = Number(parts[1]); y = Number(parts[2]); }
+      if ([y, m, d].some(v => Number.isNaN(v))) return this.toast.push('Invalid date', 'info');
+      const start = new Date(y, m - 1, d, sh, sm, 0, 0);
       const end = new Date(start.getTime() + Number(this.availabilityHours) * 3600000);
       const eh = String(end.getHours()).padStart(2, '0');
       const em = String(end.getMinutes()).padStart(2, '0');
       endTime = `${eh}:${em}`;
     }
-    this.svc.createAvailability({ date: this.date, startTime: this.startTime, endTime, slotDurationMinutes: this.duration }).subscribe({ next: (res: any) => { this.toast.push(`${res.created || 0} slots created`, 'success'); this.load(); }, error: (err: any) => this.toast.push(err?.error?.message || 'Failed to create slots','error') });
+    // Build ISO payload to avoid server-side date parsing issues
+    try {
+      const buildDateParts = (dateStr: string) => {
+        const parts = (dateStr || '').split('-').map(s => s.trim());
+        if (parts.length !== 3) return null;
+        let y = Number(parts[0]);
+        let m = Number(parts[1]);
+        let d = Number(parts[2]);
+        if (parts[0].length !== 4) { d = Number(parts[0]); m = Number(parts[1]); y = Number(parts[2]); }
+        if ([y, m, d].some(v => Number.isNaN(v))) return null;
+        return { y, m, d };
+      };
+      const dp = buildDateParts(this.date);
+      if (!dp) return this.toast.push('Invalid date', 'info');
+      const [eh, em] = (endTime || '').split(':').map((x: any) => Number(x));
+      const startDt = new Date(dp.y, dp.m - 1, dp.d, sh, sm, 0, 0);
+      const endDt = new Date(dp.y, dp.m - 1, dp.d, eh, em, 0, 0);
+      const payload: any = { scheduledStartIso: startDt.toISOString(), scheduledEndIso: endDt.toISOString(), slotDurationMinutes: this.duration };
+      console.debug('createAvailability payload', payload);
+      this.svc.createAvailability(payload).subscribe({ next: (res: any) => { this.toast.push(`${res.created || 0} slots created`, 'success'); this.load(); }, error: (err: any) => this.toast.push(err?.error?.message || 'Failed to create slots','error') });
+    } catch (e) {
+      this.toast.push('Failed to create slots','error');
+    }
   }
 
   disable(s: any) { this.svc.disableSlot(s._id).subscribe({ next: () => { this.toast.push('Disabled', 'info'); this.load(); }, error: () => this.toast.push('Failed to disable','error') }); }

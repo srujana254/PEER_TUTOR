@@ -41,14 +41,6 @@ router.post('/create', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!startAt || !endAt) return res.status(400).json({ message: 'Invalid start/end times' });
     if (endAt <= startAt) return res.status(400).json({ message: 'endTime must be after startTime' });
 
-    // Business rule: tutors cannot create slots for the same calendar day after 23:00 server-local time
-    const now = new Date();
-    try {
-      if (startAt.toDateString() === now.toDateString() && now.getHours() >= 23) {
-        return res.status(400).json({ message: 'Cannot create slots for today after 23:00' });
-      }
-    } catch (e) { /* ignore date comparison errors */ }
-
     // Prevent creating slots that start in the past (small 60s grace to account for clock skew)
     if (startAt.getTime() < Date.now() - 60 * 1000) return res.status(400).json({ message: 'Cannot create slots in the past' });
 
