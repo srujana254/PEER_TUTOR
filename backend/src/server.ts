@@ -29,9 +29,16 @@ const app = express();
 // FRONTEND_ORIGINS="https://peer-frontend-hscj.onrender.com,https://peer-frontend-other.onrender.com"
 // Set FRONTEND_ALLOW_ALL=true to allow all origins (use only for quick testing)
 const rawFrontendOrigins = process.env.FRONTEND_ORIGINS || 'https://peer-frontend-hscj.onrender.com';
-const allowedOrigins = rawFrontendOrigins.split(',').map(s => s.trim()).filter(Boolean);
-const allowAll = String(process.env.FRONTEND_ALLOW_ALL || '').toLowerCase() === 'true';
+// determine environment early so we can conditionally add dev origins
 const isDev = String(process.env.NODE_ENV || '').toLowerCase() !== 'production';
+const allowedOrigins = rawFrontendOrigins.split(',').map(s => s.trim()).filter(Boolean);
+// When running in development, add common localhost dev origins so Socket.IO (which
+// expects an array) will allow dev frontend at http://localhost:4200
+if (isDev) {
+  const devLocalOrigins = ['http://localhost:4200', 'http://127.0.0.1:4200'];
+  devLocalOrigins.forEach(o => { if (allowedOrigins.indexOf(o) === -1) allowedOrigins.push(o); });
+}
+const allowAll = String(process.env.FRONTEND_ALLOW_ALL || '').toLowerCase() === 'true';
 
 const corsOptions = {
   origin: function (origin: any, callback: any) {

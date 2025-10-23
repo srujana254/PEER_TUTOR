@@ -15,18 +15,42 @@ router.post('/create', requireAuth, async (req: AuthRequest, res: Response) => {
     const user = await User.findById(uid);
     if (!user) return res.status(401).json({ message: 'Unauthorized' });
     if (!user.isTutor) return res.status(403).json({ message: 'Only tutors can create slots' });
-    const { date, startTime, endTime, slotDurationMinutes } = req.body;
-    if (!date || !startTime || !endTime || !slotDurationMinutes) return res.status(400).json({ message: 'Missing params' });
-  // date: YYYY-MM-DD, startTime/endTime: HH:mm (24h)
-  const [sh, sm] = (startTime || '').split(':').map((x: any) => Number(x));
-  const [eh, em] = (endTime || '').split(':').map((x: any) => Number(x));
-  if (Number.isNaN(sh) || Number.isNaN(sm) || Number.isNaN(eh) || Number.isNaN(em)) return res.status(400).json({ message: 'Invalid time format' });
-  // Construct Date objects in local time using date components to avoid timezone math issues
-  const [y, m, d] = (date || '').split('-').map((x: any) => Number(x));
-  if ([y, m, d].some(v => Number.isNaN(v))) return res.status(400).json({ message: 'Invalid date format' });
-  const startAt = new Date(y, m - 1, d, sh, sm, 0, 0);
-  const endAt = new Date(y, m - 1, d, eh, em, 0, 0);
+    const { date, startTime, endTime, slotDurationMinutes, scheduledStartIso, scheduledEndIso } = req.body;
+    // Debug payload for easier diagnosis
+    console.log('[slots:create] payload:', { date, startTime, endTime, slotDurationMinutes, scheduledStartIso, scheduledEndIso });
+
+    // Accept either legacy (date + startTime + endTime) or ISO instants (scheduledStartIso, scheduledEndIso)
+    let startAt: Date | null = null;
+    let endAt: Date | null = null;
+    if (scheduledStartIso && scheduledEndIso) {
+      startAt = new Date(scheduledStartIso);
+      endAt = new Date(scheduledEndIso);
+      if (isNaN(startAt.getTime()) || isNaN(endAt.getTime())) return res.status(400).json({ message: 'Invalid ISO datetimes' });
+    } else {
+      if (!date || !startTime || !endTime || !slotDurationMinutes) return res.status(400).json({ message: 'Missing params' });
+      // date: YYYY-MM-DD, startTime/endTime: HH:mm (24h)
+      const [sh, sm] = (startTime || '').split(':').map((x: any) => Number(x));
+      const [eh, em] = (endTime || '').split(':').map((x: any) => Number(x));
+      if (Number.isNaN(sh) || Number.isNaN(sm) || Number.isNaN(eh) || Number.isNaN(em)) return res.status(400).json({ message: 'Invalid time format' });
+      // Construct Date objects in local time using date components to avoid timezone math issues
+      const [y, m, d] = (date || '').split('-').map((x: any) => Number(x));
+      if ([y, m, d].some(v => Number.isNaN(v))) return res.status(400).json({ message: 'Invalid date format' });
+      startAt = new Date(y, m - 1, d, sh, sm, 0, 0);
+      endAt = new Date(y, m - 1, d, eh, em, 0, 0);
+    }
+    if (!startAt || !endAt) return res.status(400).json({ message: 'Invalid start/end times' });
     if (endAt <= startAt) return res.status(400).json({ message: 'endTime must be after startTime' });
+
+    // Business rule: tutors cannot create slots for the same calendar day after 23:00 server-local time
+    const now = new Date();
+    try {
+      if (startAt.toDateString() === now.toDateString() && now.getHours() >= 23) {
+        return res.status(400).json({ message: 'Cannot create slots for today after 23:00' });
+      }
+    } catch (e) { /* ignore date comparison errors */ }
+
+    // Prevent creating slots that start in the past (small 60s grace to account for clock skew)
+    if (startAt.getTime() < Date.now() - 60 * 1000) return res.status(400).json({ message: 'Cannot create slots in the past' });
 
     const tutorProfile = await TutorProfile.findOne({ userId: user._id });
     if (!tutorProfile) return res.status(404).json({ message: 'Tutor profile not found' });
