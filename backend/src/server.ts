@@ -10,6 +10,7 @@ import * as socketio from 'socket.io';
 // namespace object when necessary.
 const IOServer: any = (socketio as any).Server || (socketio as any).default || socketio;
 import { setIo } from './lib/socket';
+import jwt from 'jsonwebtoken';
 
 import { router as authRoutes } from './routes/auth.routes';
 import { router as tutorRoutes } from './routes/tutor.routes';
@@ -105,6 +106,38 @@ const io = new IOServer(httpServer, {
 });
 // store io instance for use in controllers
 setIo(io);
+
+// accept socket connections and map authenticated sockets into per-user rooms
+try {
+  io.on('connection', async (socket: any) => {
+    try {
+      const token = (socket.handshake && (socket.handshake.auth && socket.handshake.auth.token)) || (socket.handshake && socket.handshake.headers && socket.handshake.headers.authorization && String(socket.handshake.headers.authorization).startsWith('Bearer ') ? String(socket.handshake.headers.authorization).slice(7) : null) || null;
+      let userId: string | null = null;
+      if (token) {
+        try {
+          const secret = process.env.JWT_SECRET || 'dev_secret';
+          const payload: any = jwt.verify(token, secret);
+          userId = payload?.userId || null;
+        } catch (e) {
+          // ignore invalid token
+          userId = null;
+        }
+      }
+      if (userId) {
+        try { socket.join(`user:${userId}`); } catch (e) {}
+      }
+
+      socket.on('disconnect', () => {
+        // no-op for now
+      });
+    } catch (e) {
+      // swallow per-connection errors
+      console.error('socket connection handler error', e);
+    }
+  });
+} catch (e) {
+  console.error('failed to install socket connection handler', e);
+}
 
 httpServer.listen(port, bindHost, () => {
   console.log(`Server running on http://${bindHost}:${port}`);

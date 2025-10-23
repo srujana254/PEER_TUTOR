@@ -149,6 +149,17 @@ export async function instantStart(req: AuthRequest, res: Response) {
       await Notification.create({ userId: session.studentId || session.tutorId, type: 'session_started', data: { sessionId: session._id, meetingUrl, joinToken, expiresAt } });
     } catch (e) { /* ignore */ }
 
+    // emit socket event to involved users
+    try {
+      const { getIo } = await import('../lib/socket');
+      const io = getIo();
+      if (io) {
+        const payload = { sessionId: session._id, meetingUrl, joinToken, expiresAt };
+        try { if (session.studentId) io.to(`user:${String(session.studentId)}`).emit('session_started', payload); } catch (e) {}
+        try { io.to(`user:${String(session.tutorId)}`).emit('session_started', payload); } catch (e) {}
+      }
+    } catch (e) { console.error('failed to emit session_started (instant)', e); }
+
     return res.json({ meetingUrl, joinToken, expiresAt, session });
   } catch (e) {
     console.error('instantStart failed', e);
@@ -293,6 +304,21 @@ export async function startSession(req: AuthRequest, res: Response) {
     // non-fatal
     console.error('failed to create notification', e);
   }
+
+  // emit socket event to student and tutor
+  try {
+    const { getIo } = await import('../lib/socket');
+    const io = getIo();
+    if (io) {
+      const payload = { sessionId: session._id, meetingUrl, joinToken, expiresAt };
+      try { io.to(`user:${String(session.studentId)}`).emit('session_started', payload); } catch (e) {}
+      try {
+        const tutorProfile = await TutorProfile.findById(session.tutorId);
+        const tutorUser = tutorProfile ? tutorProfile.userId : session.tutorId;
+        if (tutorUser) io.to(`user:${String(tutorUser)}`).emit('session_started', payload);
+      } catch (e) {}
+    }
+  } catch (e) { console.error('failed to emit session_started', e); }
 
   res.json({ meetingUrl, joinToken, expiresAt });
 }

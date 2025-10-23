@@ -139,6 +139,22 @@ router.post('/:slotId/book', requireAuth, async (req: AuthRequest, res: Response
       } catch (e) { /* ignore notification failures */ }
     } catch (e) { /* ignore dynamic import failures */ }
 
+    // emit socket event to tutor (and student) so real-time clients update immediately
+    try {
+      const { getIo } = await import('../lib/socket');
+      const io = getIo();
+      if (io) {
+  const sessObj: any = (typeof newSession[0].toObject === 'function') ? newSession[0].toObject() : Object.assign({}, newSession[0]);
+        // join user rooms by userId; tutorProfile.userId references the user
+        if (tutorProfile && tutorProfile.userId) {
+          io.to(`user:${String(tutorProfile.userId)}`).emit('session_created', sessObj);
+        }
+        if (user && user._id) {
+          io.to(`user:${String(user._id)}`).emit('session_created', sessObj);
+        }
+      }
+    } catch (e) { console.error('failed to emit session_created', e); }
+
     // Normalize session object for API clients: ensure _id exists and scheduledAt is an ISO string
     try {
       const sessDoc: any = newSession[0];

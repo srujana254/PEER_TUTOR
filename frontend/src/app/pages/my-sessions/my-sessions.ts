@@ -41,6 +41,9 @@ export class MySessions {
   jitsiUrl: string | null = null;
   jitsiSessionId: string | null = null;
   jitsiJoinToken: string | null = null;
+  // live clock used to drive time-dependent UI without reload
+  now: Date = new Date();
+  private nowTimer: any = null;
   // details overlay
   selectedSession: any = null;
   // editing state
@@ -86,7 +89,7 @@ export class MySessions {
 
   canStartSession(s: any) {
     if (s.status !== 'scheduled') return false;
-    const now = new Date();
+    const now = this.now || new Date();
     const scheduled = new Date(s.scheduledAt);
     const startWindow = new Date(scheduled.getTime() - 15 * 60000);
     const endWindow = new Date(scheduled.getTime() + 4 * 60 * 60000);
@@ -178,7 +181,7 @@ export class MySessions {
   isWaitingForTutor(s: any) {
     try {
       if (!s || !s.scheduledAt) return false;
-      const now = new Date();
+      const now = this.now || new Date();
       const scheduled = new Date(s.scheduledAt);
       const preWindow = new Date(scheduled.getTime() - this.preStartWindowMinutes * 60000);
       return now >= preWindow && now < scheduled && s.status === 'scheduled' && !this.isTutorForSession(s);
@@ -195,7 +198,8 @@ export class MySessions {
       const dur = (s.durationMinutes ?? s.duration ?? 0) * 60000;
       if (!dur) return false; // unknown duration -> don't assume ended
       const end = scheduled + dur;
-      return Date.now() > end;
+      const nowMs = (this.now || new Date()).getTime();
+      return nowMs > end;
     } catch (e) { return false; }
   }
 
@@ -233,6 +237,14 @@ export class MySessions {
     try {
       window.addEventListener('session:booked', this.onSessionBooked as EventListener);
     } catch (e) {}
+    // listen for session started events (emitted via socket -> App)
+    try {
+      window.addEventListener('session:started', this.onSessionStarted as EventListener);
+    } catch (e) {}
+    // start live clock to drive time-sensitive UI
+    try {
+      this.nowTimer = setInterval(() => { this.now = new Date(); }, 1000);
+    } catch (e) {}
   }
 
   ngOnDestroy() {
@@ -240,6 +252,8 @@ export class MySessions {
     try { if (this.refreshTimer) clearInterval(this.refreshTimer); } catch (e) {}
     try { if (this.pendingPollTimer) clearInterval(this.pendingPollTimer); } catch (e) {}
     try { window.removeEventListener('session:booked', this.onSessionBooked as EventListener); } catch (e) {}
+  try { window.removeEventListener('session:started', this.onSessionStarted as EventListener); } catch (e) {}
+  try { if (this.nowTimer) { clearInterval(this.nowTimer); this.nowTimer = null; } } catch (e) {}
     // removed dashboard view event subscription
   }
 
@@ -276,6 +290,28 @@ export class MySessions {
       // otherwise fallback to reloading from server
       this.reloadSessions();
     } catch (e) {}
+  }
+
+  // handler for session started events (socket -> App -> window event)
+  onSessionStarted = (ev: any) => {
+    try {
+      const data = ev && ev.detail ? ev.detail : null;
+      const sid = data && (data.sessionId || data._id || data.id) ? (data.sessionId || data._id || data.id) : null;
+      if (!sid) return;
+      const idx = (this.sessions || []).findIndex((x:any) => String(x._id) === String(sid));
+      if (idx >= 0) {
+        const s = this.sessions[idx];
+        if (data.meetingUrl) s.meetingUrl = data.meetingUrl;
+        if (data.joinToken) s.joinToken = data.joinToken;
+        if (data.expiresAt) s.meetingUrlExpiresAt = data.expiresAt;
+        s.status = 'in-progress';
+        this.sessions[idx] = s;
+        if (this.selectedSession && String(this.selectedSession._id) === String(sid)) this.selectedSession = s;
+      } else {
+        // Not found locally; refresh list to pick up authoritative session
+        try { this.reloadSessions(); } catch (e) {}
+      }
+    } catch (e) { /* ignore */ }
   }
 
   reloadSessions() {
@@ -408,7 +444,7 @@ export class MySessions {
   }
 
   get visibleSessions() {
-    const now = new Date();
+    const now = this.now || new Date();
     if (this.filter === 'all') return this.sessions;
     if (this.filter === 'upcoming') return this.sessions.filter(s => new Date(s.scheduledAt) > now);
     return this.sessions.filter(s => new Date(s.scheduledAt) <= now);

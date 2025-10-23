@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { AuthService } from './services/auth.service';
 import { environment } from '../environments/environment';
 import { NotificationService } from './services/notification.service';
+import { SocketService } from './services/socket.service';
 import { BecomeTutorPage } from './pages/become-tutor/become-tutor';
 import { ToastsComponent } from './components/toasts/toasts';
 
@@ -24,6 +25,7 @@ export class App {
   ];
   private auth = inject(AuthService);
   private notificationsSvc = inject(NotificationService);
+  private socketSvc = inject(SocketService);
   private router = inject(Router);
 
   // Expose services globally for simple page wiring prior to auth UI
@@ -43,6 +45,12 @@ export class App {
   ngOnInit() {
     // start notifications polling when authenticated
     if (this.isAuthed()) {
+      // connect socket with current token
+      try { this.socketSvc.connect(localStorage.getItem('token')).catch((e: any) => {}); } catch {}
+
+      // listen for server push events
+      try { this.socketSvc.on('session_started', (data: any) => { try { window.dispatchEvent(new CustomEvent('session:started', { detail: data })); } catch {} }); } catch {}
+      try { this.socketSvc.on('session_created', (data: any) => { try { window.dispatchEvent(new CustomEvent('session:booked', { detail: data })); } catch {} }); } catch {}
       try { this.notificationsSvc.start(); } catch {}
       this.notificationsSvc.notifications$.subscribe((list) => {
         // map into small header-friendly shape
