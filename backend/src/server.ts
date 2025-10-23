@@ -18,6 +18,7 @@ import { router as feedbackRoutes } from './routes/feedback.routes';
 import { router as dashboardRoutes } from './routes/dashboard.routes';
 import { router as notificationRoutes } from './routes/notification.routes';
 import { router as adminRoutes } from './routes/admin.routes';
+import { router as slotRoutes } from './routes/slot.routes';
 
 dotenv.config();
 
@@ -85,6 +86,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/slots', slotRoutes);
 
 // NOTE: CORS already configured above via corsOptions; do not re-register here.
 const port = Number(process.env.PORT) || 4000;
@@ -117,5 +119,16 @@ httpServer.listen(port, bindHost, () => {
     console.log('Available network addresses:', Array.from(new Set(addrs)).join(', '));
   } catch (e) {}
 });
+
+// Background worker: expire past available slots every minute
+try {
+  const { Slot } = require('./models/Slot');
+  setInterval(async () => {
+    try {
+      const now = new Date();
+      await Slot.updateMany({ endAt: { $lt: now }, status: { $in: ['available','disabled'] } }, { $set: { status: 'expired' } });
+    } catch (e) { /* ignore */ }
+  }, 60 * 1000);
+} catch (e) {}
 
 

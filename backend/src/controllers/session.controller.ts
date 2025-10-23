@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { Session } from '../models/Session';
+import { Slot } from '../models/Slot';
 import { TutorProfile } from '../models/TutorProfile';
 import { Notification } from '../models/Notification';
 import { Feedback } from '../models/Feedback';
@@ -92,6 +93,69 @@ export async function bookSession(req: AuthRequest, res: Response) {
   res.status(201).json(session);
 }
 
+// Student requests a meeting with a tutor (non-committal) -> create a notification
+export async function requestMeeting(req: AuthRequest, res: Response) {
+  const userId = req.userId!;
+  const { tutorId, subject, message } = req.body as { tutorId: string; subject?: string; message?: string };
+  if (!tutorId) return res.status(400).json({ message: 'Missing tutorId' });
+  try {
+    const tutor = await TutorProfile.findById(tutorId);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+    // create notification for tutor to respond
+    await Notification.create({ userId: tutor.userId as any, type: 'meeting_request', data: { from: userId, subject: subject || 'Meeting request', message: message || '' } });
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('requestMeeting failed', e);
+    return res.status(500).json({ message: 'Server error' });
+  }
+}
+
+// Tutor can instantly start a meeting for a session or create an on-the-fly in-progress session
+export async function instantStart(req: AuthRequest, res: Response) {
+  const userId = req.userId!;
+  const { id } = req.params; // optional session id
+  try {
+    // If id is provided, try to load and ensure the caller is the tutor
+    let session = null as any;
+    if (id) session = await Session.findById(id);
+    // If session exists, check tutor ownership
+    if (session) {
+      const tutorProfile = await TutorProfile.findById(session.tutorId);
+      const tutorUserId = tutorProfile ? String(tutorProfile.userId) : String(session.tutorId);
+      if (String(userId) !== String(tutorUserId)) return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // Create meeting URL/token for either existing session or a lightweight ad-hoc session
+    const secret = process.env.JWT_SECRET || 'change_me';
+    const shortToken = Math.random().toString(36).slice(2, 8);
+    const meetRoom = `session-${session?._id || shortToken}-${Date.now().toString(36)}`;
+    const meetingUrl = `https://meet.jit.si/${meetRoom}`;
+    const joinToken = jwt.sign({ sessionId: session?._id || null, startedBy: userId }, secret, { expiresIn: '6h' });
+    const expiresAt = new Date(Date.now() + 6 * 60 * 60000);
+
+    if (session) {
+      session.meetingUrl = meetingUrl;
+      session.joinToken = joinToken;
+      session.meetingUrlExpiresAt = expiresAt;
+      session.status = 'in-progress' as any;
+      await session.save();
+    } else {
+      // create a lightweight session record (student unspecified) and mark in-progress
+      session = await Session.create({ tutorId: userId, studentId: null, subject: 'Instant meeting', scheduledAt: new Date(), durationMinutes: 60, status: 'in-progress', meetingUrl, joinToken, meetingUrlExpiresAt: expiresAt });
+    }
+
+    // notify connected students or the tutor's students (best-effort)
+    try {
+      await Notification.create({ userId: session.studentId || session.tutorId, type: 'session_started', data: { sessionId: session._id, meetingUrl, joinToken, expiresAt } });
+    } catch (e) { /* ignore */ }
+
+    return res.json({ meetingUrl, joinToken, expiresAt, session });
+  } catch (e) {
+    console.error('instantStart failed', e);
+    return res.status(500).json({ message: 'Server error' });
+  }
+}
+
 export async function completeSession(req: AuthRequest, res: Response) {
   const { id } = req.params;
   const userId = req.userId!;
@@ -118,6 +182,10 @@ export async function cancelSession(req: AuthRequest, res: Response) {
   const session = await Session.findByIdAndUpdate(id, { status: 'cancelled' }, { new: true });
   if (session) {
     await Notification.create({ userId: session.tutorId as any, type: 'session_cancelled', data: { sessionId: session._id } });
+    // If this session was created from a slot, free that slot for others
+    try {
+      await Slot.findOneAndUpdate({ sessionId: session._id }, { status: 'available', bookedBy: null, sessionId: null });
+    } catch (e) { console.error('failed to free slot on cancel', e); }
   }
   res.json(session);
 }
@@ -388,6 +456,10 @@ export async function deleteSession(req: AuthRequest, res: Response) {
   session.status = 'cancelled' as any;
   await session.save();
   try { await Notification.create({ userId: session.tutorId as any, type: 'session_cancelled', data: { sessionId: session._id } }); } catch (e) {}
+  // If the session was linked to a slot, free the slot so others can book it
+  try {
+    await Slot.findOneAndUpdate({ sessionId: session._id }, { status: 'available', bookedBy: null, sessionId: null });
+  } catch (e) { console.error('failed to free slot on delete', e); }
   res.json({ success: true, session });
 }
 

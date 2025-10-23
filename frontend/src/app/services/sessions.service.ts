@@ -33,6 +33,15 @@ export class SessionsService {
     return this.api.post<{ joinToken: string; expiresAt: string }>(`/sessions/${sessionId}/issue-join`, {});
   }
 
+  requestMeeting(tutorId: string, subject?: string, message?: string) {
+    return this.api.post('/sessions/request', { tutorId, subject, message });
+  }
+
+  instantStart(sessionId?: string) {
+    const idPart = sessionId ? `/${sessionId}/instant-start` : '/instant-start';
+    return this.api.post<any>(`/sessions${idPart}`, {});
+  }
+
   update(sessionId: string, changes: { subject?: string; scheduledAt?: string; durationMinutes?: number; notes?: string }) {
     return this.api.put(`/sessions/${sessionId}`, changes);
   }

@@ -4,6 +4,8 @@ import { TutorDashboard } from './pages/tutor-dashboard/tutor-dashboard';
 import { DashboardHome } from './pages/dashboard-home/dashboard-home';
 import { FindTutors } from './pages/find-tutors/find-tutors';
 import { MySessions } from './pages/my-sessions/my-sessions';
+import { TutorSlots } from './pages/tutor-slots/tutor-slots';
+import { SlotsBrowser } from './pages/slots-browser/slots-browser';
 import { SessionBooking } from './pages/session-booking/session-booking';
 import { Feedback } from './pages/feedback/feedback';
 import { Admin } from './pages/admin/admin';
@@ -19,7 +21,9 @@ export const routes: Routes = [
   { path: 'signup', component: SignUpPage, canActivate: [guestGuard] },
   { path: 'dashboard', component: DashboardHome, canActivate: [authGuard] },
   { path: 'tutor', component: TutorDashboard, canActivate: [authGuard, tutorGuard] },
+  { path: 'tutor/slots', component: TutorSlots, canActivate: [authGuard, tutorGuard] },
   { path: 'find', component: FindTutors, canActivate: [authGuard] },
+  { path: 'slots', component: SlotsBrowser, canActivate: [authGuard] },
   { path: 'sessions', component: MySessions, canActivate: [authGuard] },
   { path: 'booking', component: SessionBooking, canActivate: [authGuard] },
   { path: 'feedback', component: Feedback, canActivate: [authGuard] },

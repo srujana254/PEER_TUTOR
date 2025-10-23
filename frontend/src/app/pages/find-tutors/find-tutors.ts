@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { TutorsService } from '../../services/tutors.service';
 import { ToastService } from '../../services/toast.service';
 import { SessionsService } from '../../services/sessions.service';
+import { SlotsService } from '../../services/slots.service';
+import { Router } from '@angular/router';
 import { TutorCardComponent } from '../../components/tutor-card/tutor-card';
 
 @Component({
@@ -16,6 +18,8 @@ export class FindTutors {
   private tutorsService = inject(TutorsService);
   private toast = inject(ToastService);
   private sessionsService = inject(SessionsService);
+  private slotsService = inject(SlotsService);
+  private router = inject(Router);
   tutors: any[] = [];
   filtered: any[] = [];
   search = '';
@@ -28,11 +32,13 @@ export class FindTutors {
   // New booking modal state
   bookDate = '';
   bookTime = '';
-  bookDuration: number = 60;
   bookNotes = '';
   bookingInProgress = false;
   bookingError = '';
   selectedTutorSubjects: string[] = [];
+  // slots fetched for the tutor when opening booking modal
+  slots: any[] = [];
+  selectedSlot: any = null;
 
   ngOnInit() {
     // Load tutors with pagination (page 1)
@@ -140,12 +146,17 @@ export class FindTutors {
     this.bookSubject = (Array.isArray(subj) ? subj[0] : subj) || '';
     this.selectedTutorSubjects = Array.isArray(subj) ? subj : (subj ? [subj] : []);
     // reset booking form fields
-    this.bookDate = '';
-    this.bookTime = '';
-    this.bookDuration = 60;
+  this.bookDate = '';
+  this.bookTime = '';
     this.bookNotes = '';
     this.bookingError = '';
     this.bookingInProgress = false;
+    this.slots = [];
+    this.selectedSlot = null;
+    // load tutor slots (upcoming available)
+    if (this.bookingTutorId) {
+      this.slotsService.tutorSlots(this.bookingTutorId).subscribe({ next: (s:any) => { this.slots = s || []; }, error: () => { this.slots = []; } });
+    }
   }
 
   book() {
@@ -153,9 +164,22 @@ export class FindTutors {
     if (!this.bookingTutorId || !this.bookSubject || !this.bookWhen) return;
     const scheduledAt = new Date(this.bookWhen).toISOString();
     this.sessionsService.book(this.bookingTutorId, this.bookSubject, scheduledAt, 60).subscribe({
-      next: () => {
+      next: (res:any) => {
         this.bookingTutorId = null;
         this.toast.push('Session booked', 'success');
+        let sessObj: any = res && res._id ? res : res;
+        try { if (sessObj && !sessObj._id && sessObj.id) sessObj._id = sessObj.id; } catch (e) {}
+        try {
+          // DEBUG: log booking response shape
+          try { console.debug('[find-tutors] booked response', sessObj); } catch (e) {}
+          // Persist to history state and localStorage as a robust fallback
+          try { localStorage.setItem('lastBookedSession', JSON.stringify(sessObj)); } catch (e) {}
+          // DEBUG: log history.state prior to navigation
+          try { console.debug('[find-tutors] history.state before navigate', (history as any).state); } catch (e) {}
+          this.router.navigate(['/my-sessions'], { state: { newSession: sessObj } }).then(() => {
+            try { window.dispatchEvent(new CustomEvent('session:booked', { detail: sessObj })); } catch(e){}
+          });
+        } catch(e) {}
       },
       error: () => this.toast.push('Please sign in to book', 'error')
     });
@@ -165,19 +189,31 @@ export class FindTutors {
     this.bookingError = '';
     if (!this.bookingTutorId) return;
     if (!this.bookSubject) { this.bookingError = 'Please select a subject'; return; }
-    if (!this.bookDate || !this.bookTime) { this.bookingError = 'Please select date and time'; return; }
-    const scheduledAt = new Date(`${this.bookDate}T${this.bookTime}`).toISOString();
+    // Require a selected slot to book
+    if (!this.selectedSlot) { this.bookingError = 'Please select an available slot'; return; }
     this.bookingInProgress = true;
-    this.sessionsService.book(this.bookingTutorId, this.bookSubject, scheduledAt, Number(this.bookDuration), this.bookNotes).subscribe({
-      next: () => {
+    const payload: any = { subject: this.bookSubject, notes: this.bookNotes };
+    this.slotsService.bookSlot(this.selectedSlot, payload).subscribe({
+      next: (res:any) => {
         this.bookingInProgress = false;
         this.bookingTutorId = null;
         this.toast.push('Session booked', 'success');
+        try {
+          let sessObj: any = res && res.session ? res.session : res;
+          try { if (sessObj && !sessObj._id && sessObj.id) sessObj._id = sessObj.id; } catch (e) {}
+          // Persist to history state and localStorage as a robust fallback
+          try { localStorage.setItem('lastBookedSession', JSON.stringify(sessObj)); } catch (e) {}
+          this.router.navigate(['/my-sessions'], { state: { newSession: sessObj } }).then(() => {
+            try { window.dispatchEvent(new CustomEvent('session:booked', { detail: sessObj })); } catch(e){}
+          });
+        } catch(e) {}
       },
-      error: (err: any) => {
+      error: (err:any) => {
         this.bookingInProgress = false;
-        this.bookingError = err?.error?.message || err?.message || 'Failed to book session';
+        this.bookingError = err?.error?.message || err?.message || 'Failed to book slot';
         this.toast.push(this.bookingError, 'error');
+        // refresh slots to show latest availability
+        if (this.bookingTutorId) this.slotsService.tutorSlots(this.bookingTutorId).subscribe({ next: (s:any)=> this.slots = s || [], error: ()=> this.slots = [] });
       }
     });
   }

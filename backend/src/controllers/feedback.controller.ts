@@ -4,6 +4,25 @@ import { Feedback } from '../models/Feedback';
 import { Session } from '../models/Session';
 import { TutorProfile } from '../models/TutorProfile';
 
+// Recompute average rating and count for a tutor and persist to TutorProfile
+async function recomputeTutorRating(tutorId: any) {
+  try {
+    const ag = await Feedback.aggregate([
+      { $match: { tutorId: typeof tutorId === 'string' ? new (require('mongoose')).Types.ObjectId(tutorId) : tutorId } },
+      { $group: { _id: '$tutorId', avg: { $avg: '$rating' }, cnt: { $sum: 1 } } }
+    ]);
+    if (ag && ag.length) {
+      const rec = ag[0];
+      await TutorProfile.findByIdAndUpdate(rec._id, { averageRating: rec.avg || 0, ratingCount: rec.cnt || 0 });
+    } else {
+      // no feedbacks -> reset
+      await TutorProfile.findByIdAndUpdate(tutorId, { averageRating: 0, ratingCount: 0 });
+    }
+  } catch (e) {
+    console.error('recomputeTutorRating failed', e);
+  }
+}
+
 export async function leaveFeedback(req: AuthRequest, res: Response) {
   const userId = req.userId;
   if (!userId) return res.status(401).json({ message: 'Not authenticated' });
@@ -29,7 +48,25 @@ export async function leaveFeedback(req: AuthRequest, res: Response) {
   } catch (e) { /* ignore date parsing errors and allow */ }
 
   const fb = await Feedback.create({ sessionId, tutorId, rating, comment, userId });
-  res.status(201).json(fb);
+  // Update tutor aggregates and wait so we can return authoritative tutor info
+  try { await recomputeTutorRating(tutorId); } catch (e) { console.error('recompute error', e); }
+
+  // Fetch authoritative session and include hasFeedback flag so client can rely on server state
+  let sessionDoc: any = null;
+  try {
+    sessionDoc = await Session.findById(sessionId).lean();
+    if (sessionDoc) {
+      sessionDoc.hasFeedback = true;
+    }
+  } catch (e) { /* ignore */ }
+
+  // Fetch updated tutor profile (aggregates) if available
+  let tutorProfile: any = null;
+  try {
+    tutorProfile = await TutorProfile.findById(tutorId).lean();
+  } catch (e) { /* ignore */ }
+
+  res.status(201).json({ feedback: fb, session: sessionDoc, tutor: tutorProfile });
 }
 
 export async function getFeedbackForTutor(_req: AuthRequest, res: Response) {

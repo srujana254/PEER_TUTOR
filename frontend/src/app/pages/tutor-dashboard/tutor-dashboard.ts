@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { Router } from '@angular/router';
 import { TutorsService } from '../../services/tutors.service';
 import { ToastService } from '../../services/toast.service';
@@ -9,7 +10,7 @@ import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-tutor-dashboard',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './tutor-dashboard.html',
   styleUrls: ['./tutor-dashboard.css']
 })
@@ -108,7 +109,8 @@ export class TutorDashboard {
               localStorage.setItem('user', JSON.stringify(user));
             } catch (e) {}
             try { localStorage.setItem('dashboardView', 'tutor'); } catch {}
-            this.router.navigateByUrl('/dashboard');
+            // After becoming a tutor, go straight to the availability manager
+            this.router.navigateByUrl('/tutor/slots');
         },
         error: () => {
           this.submitting = false;

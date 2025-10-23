@@ -18,7 +18,8 @@ export class BecomeTutorPage {
   subjects: any[] = [];
   selectedSubjects: string[] = [];
   bio = '';
-  hourlyRate: number | null = null;
+  // keep an optional property to avoid compiler errors if any template bindings remain
+  hourlyRate?: number | null = null;
   // UI state
   errorMessage = '';
   isSubmitting = false;
@@ -73,12 +74,7 @@ export class BecomeTutorPage {
       this.errorMessage = 'Please select at least one subject you can teach.';
       return;
     }
-    if (this.hourlyRate == null || this.hourlyRate <= 0) {
-      this.errorMessage = 'Please enter a valid hourly rate.';
-      return;
-    }
-
-    const body = { subjects: this.selectedSubjects, bio: this.bio, hourlyRate: this.hourlyRate };
+    const body = { subjects: this.selectedSubjects, bio: this.bio };
     this.isSubmitting = true;
     this.api.post('/tutors/become', body).subscribe({
       next: (res: any) => {

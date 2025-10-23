@@ -5,9 +5,11 @@ import { Subscription } from 'rxjs';
 import { JitsiModal } from '../../components/jitsi-modal/jitsi-modal';
 import { environment } from '../../../environments/environment';
 import { SessionsService } from '../../services/sessions.service';
+import { Router } from '@angular/router';
 import { ToastService } from '../../services/toast.service';
 import { NotificationService } from '../../services/notification.service';
 import { FeedbackService } from '../../services/feedback.service';
+import { SlotsService } from '../../services/slots.service';
 
 @Component({
   selector: 'app-my-sessions',
@@ -20,8 +22,10 @@ export class MySessions {
   private notificationsSvc = inject(NotificationService);
   private toast = inject(ToastService);
   private feedbackSvc = inject(FeedbackService);
+  private slotsService = inject(SlotsService);
+  private router = inject(Router);
   sessions: any[] = [];
-  filter: 'all' | 'upcoming' | 'past' = 'past';
+  filter: 'all' | 'upcoming' | 'past' = 'upcoming';
   // view mode: 'student' or 'tutor'
   sessionsView: 'student' | 'tutor' = 'student';
   // how many minutes before scheduled time should we show a 'waiting' state
@@ -29,6 +33,8 @@ export class MySessions {
   feedbackSession: any = null;
   feedbackRating = 5;
   feedbackComment = '';
+  submittingFeedback = false;
+  feedbackClosing = false;
   startingSessionId: string | null = null;
   // for in-app Jitsi modal
   jitsiVisible = false;
@@ -43,9 +49,20 @@ export class MySessions {
   editScheduledAt = '';
   editDuration = 60;
   editNotes = '';
+  // slot editing support
+  public editingSlotOptions: any[] = [];
+  public selectedEditSlot: string | null = null;
+
+  // helper used by the template to avoid direct optional chaining checks
+  public hasEditingSlots(): boolean { return Array.isArray(this.editingSlotOptions) && this.editingSlotOptions.length > 0; }
+  public editingSlotOptionsSafe(): any[] { return this.editingSlotOptions || []; }
   // notification subscription and periodic refresh
   private notifSub: Subscription | null = null;
   private refreshTimer: any = null;
+  // When a pending booked session is present but not yet in server list,
+  // poll the server a few times to wait for eventual consistency.
+  private pendingPollTimer: any = null;
+  private pendingPollAttempts = 0;
   private dashboardViewHandler: any = null;
 
   get currentUser() {
@@ -187,7 +204,21 @@ export class MySessions {
       const stored = localStorage.getItem('sessionsView');
       if (stored === 'student' || stored === 'tutor') this.sessionsView = stored;
     } catch (e) {}
-    this.reloadSessions();
+    try {
+      const storedFilter = localStorage.getItem('sessionsFilter');
+      if (storedFilter === 'all' || storedFilter === 'upcoming' || storedFilter === 'past') this.filter = storedFilter as any;
+    } catch (e) {}
+  this.reloadSessions();
+  // Some navigation state (history.state) may only be available a short moment
+  // after component init in certain browsers / navigation timings. Schedule a
+  // short delayed merge to catch any pending booked session that wasn't
+  // available synchronously when reloadSessions() started.
+  try { setTimeout(() => { try { this.mergePendingBookedSession(); } catch (e) {} }, 250); } catch (e) {}
+    // If navigation state contains a newSession we defer merging until after
+    // the server reload completes (mergePendingBookedSession will run after reload).
+    try { const nav: any = (this.router as any).getCurrentNavigation ? (this.router as any).getCurrentNavigation() : null; try { if (nav && nav.extras && nav.extras.state && nav.extras.state.newSession) console.debug('[my-sessions] navigation contains newSession - deferring merge'); } catch(e){} } catch (e) {}
+
+    // pending booked session will be merged after reloadSessions() completes
     // reload when we receive a session_started notification so Join becomes visible quickly
     try {
       this.notifSub = this.notificationsSvc.notifications$.subscribe(list => {
@@ -198,17 +229,171 @@ export class MySessions {
     } catch (e) {}
     // periodic refresh as a fallback (every 15s)
     try { this.refreshTimer = setInterval(() => this.reloadSessions(), 15000); } catch (e) {}
+    // listen for cross-component session booked events so we reload immediately
+    try {
+      window.addEventListener('session:booked', this.onSessionBooked as EventListener);
+    } catch (e) {}
   }
 
   ngOnDestroy() {
     try { this.notifSub?.unsubscribe(); } catch (e) {}
     try { if (this.refreshTimer) clearInterval(this.refreshTimer); } catch (e) {}
+    try { if (this.pendingPollTimer) clearInterval(this.pendingPollTimer); } catch (e) {}
+    try { window.removeEventListener('session:booked', this.onSessionBooked as EventListener); } catch (e) {}
     // removed dashboard view event subscription
   }
 
+  // handler for window event dispatched when a session is booked elsewhere in the app
+  onSessionBooked = (ev: any) => {
+    try {
+      // If the current user is a student, switch the view to student so they see their booking
+      try {
+        const u = this.currentUser;
+        if (!u || u.isTutor !== true) {
+          this.sessionsView = 'student';
+          try { localStorage.setItem('sessionsView', 'student'); } catch (e) {}
+        }
+      } catch (e) {}
+      // If the event included the created session, insert it optimistically
+      try {
+        const sess = ev && ev.detail ? ev.detail : null;
+        if (sess && (sess._id || sess.id)) {
+          // normalize
+          if (!sess._id && sess.id) sess._id = sess.id;
+          // persist a fallback so reload/merge can pick it up later if needed
+          try { localStorage.setItem('lastBookedSession', JSON.stringify(sess)); } catch (e) {}
+          const exists = (this.sessions || []).some((x:any) => String(x._id) === String(sess._id));
+          if (!exists) this.sessions = [sess, ...this.sessions];
+          // show upcoming sessions so students immediately see the booking
+          try {
+            const sdate = sess && sess.scheduledAt ? new Date(sess.scheduledAt) : null;
+            if (sdate && sdate.getTime() > Date.now()) this.filter = 'upcoming';
+          } catch (e) {}
+          this.toast.push('Session booked', 'success');
+          return;
+        }
+      } catch (e) {}
+      // otherwise fallback to reloading from server
+      this.reloadSessions();
+    } catch (e) {}
+  }
+
   reloadSessions() {
+    // If we have a pending booked session (from navigation state or localStorage),
+    // prefer to ensure we load the student view so the server list includes it.
+    let pending = this.getPendingBookedSession();
+    if (pending) {
+      try {
+        const u = this.currentUser;
+        if (!u || u.isTutor !== true) {
+          this.sessionsView = 'student';
+          try { localStorage.setItem('sessionsView', 'student'); } catch (e) {}
+        }
+      } catch (e) {}
+    }
+
     const role: 'tutor' | 'student' = this.sessionsView === 'tutor' ? 'tutor' : 'student';
-    this.sessionsService.list(role).subscribe({ next: (list) => this.sessions = list || [], error: () => {} });
+    this.sessionsService.list(role).subscribe({ next: (list) => {
+      const serverList = list || [];
+      // Merge pending (if present) into authoritative server list so optimistic
+      // inserts are not lost when the server list arrives.
+      try {
+        if (!pending) pending = this.getPendingBookedSession();
+        if (pending && (pending._id || pending.id)) {
+          if (!pending._id && pending.id) pending._id = pending.id;
+          const exists = serverList.some((x:any) => String(x._id) === String(pending._id));
+          if (exists) {
+            // authoritative server list contains the session — use it and remove fallback
+            this.sessions = serverList;
+            try { localStorage.removeItem('lastBookedSession'); } catch (e) {}
+            // stop any pending polling attempts
+            try { if (this.pendingPollTimer) { clearInterval(this.pendingPollTimer); this.pendingPollTimer = null; this.pendingPollAttempts = 0; } } catch (e) {}
+          } else {
+            // server doesn't yet contain the session; keep optimistic pending at top
+            // and keep persisted fallback so subsequent reloads can still merge it.
+            console.debug('[my-sessions] pending session not in server list yet, keeping optimistic session', pending._id);
+            this.sessions = [pending, ...serverList];
+            // start polling to wait for the server to include the pending session
+            try {
+              if (!this.pendingPollTimer) {
+                this.pendingPollAttempts = 0;
+                this.pendingPollTimer = setInterval(() => {
+                  try {
+                    this.pendingPollAttempts++;
+                    // limit attempts to avoid infinite polling (e.g., 6 tries = ~18s)
+                    if (this.pendingPollAttempts > 6) {
+                      clearInterval(this.pendingPollTimer);
+                      this.pendingPollTimer = null;
+                      this.pendingPollAttempts = 0;
+                      console.debug('[my-sessions] stopped polling for pending session after max attempts', pending._id);
+                      return;
+                    }
+                    this.sessionsService.list(role).subscribe({ next: (fresh:any[]) => {
+                      const found = fresh && Array.isArray(fresh) ? fresh.some((x:any) => String(x._id) === String(pending._id)) : false;
+                      if (found) {
+                        // server now contains the session — adopt authoritative list and stop polling
+                        this.sessions = fresh || [];
+                        try { localStorage.removeItem('lastBookedSession'); } catch (e) {}
+                        try { clearInterval(this.pendingPollTimer); this.pendingPollTimer = null; this.pendingPollAttempts = 0; } catch (e) {}
+                      }
+                    }, error: () => {} });
+                  } catch (e) { /* ignore */ }
+                }, 3000);
+              }
+            } catch (e) {}
+          }
+          try {
+            const sdate = pending && pending.scheduledAt ? new Date(pending.scheduledAt) : null;
+            if (sdate && sdate.getTime() > Date.now()) this.filter = 'upcoming';
+          } catch (e) {}
+        } else {
+          this.sessions = serverList;
+        }
+      } catch (e) {
+        this.sessions = serverList;
+      }
+    }, error: () => {} });
+  }
+
+  // Merge a pending booked session from router state or localStorage into this.sessions
+  private mergePendingBookedSession() {
+    // kept for backward compatibility: delegate to the same helper used by reload
+    try {
+      const pending = this.getPendingBookedSession();
+      if (pending && (pending._id || pending.id)) {
+        if (!pending._id && pending.id) pending._id = pending.id;
+        const exists = (this.sessions || []).some((x:any) => String(x._id) === String(pending._id));
+        if (!exists) this.sessions = [pending, ...this.sessions];
+          // (no removal here — handled above only when server confirms)
+        try {
+          const sdate = pending && pending.scheduledAt ? new Date(pending.scheduledAt) : null;
+          if (sdate && sdate.getTime() > Date.now()) this.filter = 'upcoming';
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  // Read a pending booked session from router navigation state, history.state or localStorage
+  private getPendingBookedSession(): any {
+    try {
+      let pending: any = null;
+      try {
+        const nav: any = (this.router as any).getCurrentNavigation ? (this.router as any).getCurrentNavigation() : null;
+        pending = nav && nav.extras && nav.extras.state ? nav.extras.state.newSession : null;
+      } catch (e) { pending = null; }
+      try {
+        if (!pending && typeof history !== 'undefined' && (history as any).state && (history as any).state.newSession) {
+          pending = (history as any).state.newSession;
+        }
+      } catch (e) {}
+      try {
+        if (!pending) {
+          const raw = localStorage.getItem('lastBookedSession');
+          if (raw) pending = JSON.parse(raw);
+        }
+      } catch (e) {}
+      return pending || null;
+    } catch (e) { return null; }
   }
 
   setSessionsView(v: 'student' | 'tutor') {
@@ -219,6 +404,7 @@ export class MySessions {
 
   setFilter(f: 'all' | 'upcoming' | 'past') {
     this.filter = f;
+    try { localStorage.setItem('sessionsFilter', f); } catch (e) {}
   }
 
   get visibleSessions() {
@@ -247,6 +433,13 @@ export class MySessions {
       this.toast.push('Tutors cannot leave feedback for students', 'info');
       return;
     }
+    // Prevent opening feedback for sessions already rated
+    try {
+      if (s && s.hasFeedback) {
+        this.toast.push('You have already rated this session', 'info');
+        return;
+      }
+    } catch (e) {}
     this.feedbackSession = s;
     this.feedbackRating = 5;
     this.feedbackComment = '';
@@ -259,21 +452,49 @@ export class MySessions {
     try { this.editScheduledAt = new Date(s.scheduledAt).toISOString().slice(0,16); } catch { this.editScheduledAt = ''; }
     this.editDuration = s.durationMinutes || s.duration || 60;
     this.editNotes = s.notes || '';
+    this.selectedEditSlot = null;
+    this.editingSlotOptions = [];
+    // Try to fetch available slots for the tutor to allow moving the booking to another slot
+    try {
+      const tutorId = s.tutorId || s.tutor?._id || s.tutor?.user?._id || null;
+      if (tutorId) {
+        try {
+          this.slotsService.tutorSlots(String(tutorId)).subscribe({ next: (list:any) => this.editingSlotOptions = list || [], error: () => this.editingSlotOptions = [] });
+        } catch (e) { this.editingSlotOptions = []; }
+      }
+    } catch (e) {}
   }
 
   saveEdit() {
     if (!this.editingSession) return;
     const id = this.editingSession._id;
-  const payload: any = { subject: this.editSubject, durationMinutes: Number(this.editDuration), notes: this.editNotes };
-  if (this.editScheduledAt) payload.scheduledAt = new Date(this.editScheduledAt).toISOString();
-  this.sessionsService.update(id, payload)
-      .subscribe({ next: (res: any) => {
-        this.toast.push('Session updated', 'success');
+  // If user selected a new pre-created slot, book that slot and delete the old session
+  if (this.selectedEditSlot) {
+    const payload: any = { subject: this.editSubject, notes: this.editNotes };
+    // Book the new slot
+    const slotsSvc = (this as any).slotsService as any || null;
+    if (!slotsSvc) {
+      // fallback: call sessions update
+      this.toast.push('Unable to access slots service', 'error');
+      return;
+    }
+    slotsSvc.bookSlot(this.selectedEditSlot, payload).subscribe({ next: (res: any) => {
+      // on success, delete the old session
+      this.sessionsService.delete(id).subscribe({ next: () => {
+        this.toast.push('Session moved to new slot', 'success');
         this.editingSession = null;
         this.reloadSessions();
       }, error: (err: any) => {
-        this.toast.push(err?.error?.message || 'Failed to update session', 'error');
+        this.toast.push('Booked new slot but failed to delete old session', 'error');
+        this.reloadSessions();
       } });
+    }, error: (err: any) => {
+      this.toast.push(err?.error?.message || 'Failed to book selected slot', 'error');
+    } });
+    return;
+  }
+  // Manual edits are disabled — require selecting a pre-created slot
+  this.toast.push('Please select one of the tutor\'s available slots to move the session', 'error');
   }
 
   cancelEdit() {
@@ -322,11 +543,58 @@ export class MySessions {
       return;
     }
 
-    this.feedbackSvc.leave(this.feedbackSession._id, String(tutorId), this.feedbackRating, this.feedbackComment)
-      .subscribe({ next: () => {
-        this.feedbackSession = null;
-        this.toast.push('Feedback submitted', 'success');
-      }, error: (err: any) => this.toast.push(err?.error?.message || 'Please sign in to leave feedback', 'error') });
+    // Validate rating is within 1..5
+    const r = Number(this.feedbackRating || 0);
+    if (!r || r < 1 || r > 5) {
+      this.toast.push('Please provide a rating between 1 and 5', 'error');
+      return;
+    }
+
+    const sid = this.feedbackSession?._id;
+    // keep modal open while submitting to avoid flicker; disable submit via submittingFeedback
+    this.submittingFeedback = true;
+    this.feedbackSvc.leave(sid, String(tutorId), r, this.feedbackComment)
+      .subscribe({ next: (res: any) => {
+        // If server returned authoritative session, adopt it. Otherwise fall back to optimistic update.
+        try {
+          const serverSession = res && res.session ? res.session : null;
+          if (serverSession && sid && String(serverSession._id || serverSession.id) === String(sid)) {
+            // replace or upsert in sessions list
+            const idx = this.sessions.findIndex((x:any) => String(x._id) === String(sid));
+            if (idx >= 0) this.sessions[idx] = serverSession;
+            else this.sessions = [serverSession, ...this.sessions];
+            if (this.selectedSession && String(this.selectedSession._id) === String(sid)) this.selectedSession = serverSession;
+          } else {
+            // optimistic local update: mark session as having feedback so UI updates immediately
+            if (sid && Array.isArray(this.sessions)) {
+              const idx2 = this.sessions.findIndex((x:any) => String(x._id) === String(sid));
+              if (idx2 >= 0) this.sessions[idx2].hasFeedback = true;
+            }
+            if (this.selectedSession && String(this.selectedSession._id) === String(sid)) this.selectedSession.hasFeedback = true;
+          }
+        } catch (e) {}
+        // notify other components (tutor card) to refresh their display
+        try { if (res && res.tutor && (res.tutor._id || res.tutor.id)) {
+          const tid = res.tutor._id || res.tutor.id;
+          window.dispatchEvent(new CustomEvent('tutor:updated', { detail: { tutorId: tid, averageRating: res.tutor.averageRating || res.tutor.avgRating || res.tutor.avgRating || 0, ratingCount: res.tutor.ratingCount || res.tutor.cnt || res.tutor.ratingCount || 0 } }));
+        } } catch (e) {}
+        // show success then animate modal close for smooth UX
+        this.toast.push('Feedback submitted successfully', 'success');
+        this.submittingFeedback = false;
+        try {
+          // start exit animation
+          this.feedbackClosing = true;
+          // wait for CSS animation to finish (slightly longer than CSS duration)
+          setTimeout(() => {
+            this.feedbackSession = null;
+            this.feedbackClosing = false;
+          }, 380);
+        } catch (e) { this.feedbackSession = null; this.feedbackClosing = false; }
+      }, error: (err: any) => {
+        this.submittingFeedback = false;
+        this.toast.push(err?.error?.message || 'Please sign in to leave feedback', 'error');
+        // Do not automatically re-open the modal; user can re-open manually and retry
+      } });
   }
 
   getOtherPartyName(s: any) {

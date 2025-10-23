@@ -48,7 +48,8 @@
               <div class="small text-muted"><i class="bi bi-clock"></i> {{ formatTime(s) }}</div>
               <div class="ms-auto">
                 <button class="btn btn-outline-primary btn-sm me-2" (click)="viewDetails(s)">Details</button>
-                <button class="btn btn-success btn-sm" *ngIf="(s.status === 'completed' || isSessionEnded(s)) && !currentUser?.isTutor" (click)="openFeedback(s)">Leave Feedback</button>
+                <button class="btn btn-success btn-sm" *ngIf="(s.status === 'completed' || isSessionEnded(s)) && !currentUser?.isTutor && !s.hasFeedback" (click)="openFeedback(s)">Leave Feedback</button>
+                <span *ngIf="(s.status === 'completed' || isSessionEnded(s)) && !currentUser?.isTutor && s.hasFeedback" class="badge bg-light text-dark ms-2">You already rated</span>
                 <!-- Start (for tutors) or Join (for students) -->
                 <button *ngIf="isTutorForSession(s) && canStartSession(s) && s.status === 'scheduled'" class="btn btn-primary btn-sm ms-2" (click)="startSession(s)">
                   <span *ngIf="startingSessionId !== s._id">Start Session</span>
@@ -84,16 +85,18 @@
 
   <!-- Feedback modal overlay (only for students) -->
   <div *ngIf="!currentUser?.isTutor">
-    <div class="feedback-backdrop" *ngIf="feedbackSession">
-      <div class="feedback-modal card p-4">
+    <div class="feedback-backdrop" *ngIf="feedbackSession" [ngClass]="feedbackClosing ? 'fade-exit-active' : 'fade-enter-active'">
+      <div class="feedback-modal card p-4" [ngClass]="feedbackClosing ? 'scale-exit-active' : 'scale-enter-active'">
         <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="fw-semibold">Leave Feedback for {{ getTutorName(feedbackSession) }}</div>
-          <button class="btn-close" (click)="feedbackSession = null"></button>
+          <button class="btn-close" (click)="$event.stopPropagation(); feedbackSession = null"></button>
         </div>
 
         <div class="mb-3">
           <label class="form-label small">Rating</label>
-          <input type="number" min="1" max="5" class="form-control" [(ngModel)]="feedbackRating" />
+            <div class="star-rating">
+              <button type="button" class="star" *ngFor="let s of [1,2,3,4,5]" [class.selected]="feedbackRating >= s" (click)="feedbackRating = s">★</button>
+            </div>
         </div>
 
         <div class="mb-3">
@@ -102,8 +105,11 @@
         </div>
 
         <div class="d-flex gap-2 justify-content-end">
-          <button class="btn btn-outline-secondary" (click)="feedbackSession = null">Cancel</button>
-          <button class="btn btn-primary" (click)="submitFeedback()">Submit</button>
+          <button class="btn btn-outline-secondary" (click)="$event.stopPropagation(); feedbackSession = null" [disabled]="submittingFeedback">Cancel</button>
+          <button class="btn btn-primary" (click)="$event.stopPropagation(); submitFeedback()" [disabled]="submittingFeedback">
+            <span *ngIf="!submittingFeedback">Submit</span>
+            <span *ngIf="submittingFeedback" class="spinner-border spinner-border-sm"></span>
+          </button>
         </div>
       </div>
     </div>
@@ -123,15 +129,20 @@
       </div>
 
       <div class="mb-2">
-        <label class="form-label small">When</label>
-        <input type="datetime-local" class="form-control" [(ngModel)]="editScheduledAt" />
+        <label class="form-label small">Choose an available slot (preferred)</label>
+        <div *ngIf="hasEditingSlots()">
+          <div *ngFor="let s of editingSlotOptionsSafe()" class="card p-2 mb-2 d-flex align-items-center">
+            <input type="radio" name="editSlot" [value]="s._id" [(ngModel)]="selectedEditSlot" [ngModelOptions]="{standalone:true}" />
+            <div class="ms-2">{{ s.startAt | date:'mediumDate' }} · {{ s.startAt | date:'shortTime' }} - {{ s.endAt | date:'shortTime' }} ({{ s.durationMinutes }}m)</div>
+          </div>
+        </div>
+  <div *ngIf="!hasEditingSlots()" class="text-muted">No pre-created slots available — fallback to manual date/time</div>
       </div>
 
-      <div class="mb-2">
-        <label class="form-label small">Duration (minutes)</label>
-        <input type="number" min="15" class="form-control" [(ngModel)]="editDuration" />
+      <!-- Only allow moving session to an available pre-created slot. Hide manual date/time editing. -->
+      <div *ngIf="!selectedEditSlot" class="text-muted">
+        Select one of the tutor's available slots above to move this session. Manual edit of date/time is not supported.
       </div>
-
       <div class="mb-2">
         <label class="form-label small">Notes</label>
         <textarea class="form-control" rows="3" [(ngModel)]="editNotes"></textarea>
@@ -162,10 +173,10 @@
       <div class="mb-3 small text-secondary">Duration: {{ selectedSession.durationMinutes || selectedSession.duration || 'n/a' }} min</div>
 
       <div class="d-flex gap-2 justify-content-end">
-        <button class="btn btn-outline-secondary" (click)="selectedSession = null">Close</button>
-    <button *ngIf="isTutorForSession(selectedSession) && canStartSession(selectedSession)" class="btn btn-primary" (click)="startSession(selectedSession); selectedSession = null">Start Session</button>
-  <button *ngIf="!isTutorForSession(selectedSession) && (selectedSession.status === 'in-progress' || selectedSession.meetingUrl) && !isSessionEnded(selectedSession)" class="btn btn-success" (click)="joinSession(selectedSession); selectedSession = null">Join Session</button>
-  <button *ngIf="!currentUser?.isTutor && (selectedSession.status === 'completed' || isSessionEnded(selectedSession))" class="btn btn-success" (click)="openFeedback(selectedSession); selectedSession = null">Leave Feedback</button>
+            <button class="btn btn-outline-secondary" (click)="$event.stopPropagation(); selectedSession = null">Close</button>
+        <button *ngIf="isTutorForSession(selectedSession) && canStartSession(selectedSession)" class="btn btn-primary" (click)="$event.stopPropagation(); startSession(selectedSession); selectedSession = null">Start Session</button>
+      <button *ngIf="!isTutorForSession(selectedSession) && (selectedSession.status === 'in-progress' || selectedSession.meetingUrl) && !isSessionEnded(selectedSession)" class="btn btn-success" (click)="$event.stopPropagation(); joinSession(selectedSession); selectedSession = null">Join Session</button>
+      <button *ngIf="!currentUser?.isTutor && (selectedSession.status === 'completed' || isSessionEnded(selectedSession))" class="btn btn-success" (click)="$event.stopPropagation(); openFeedback(selectedSession); selectedSession = null">Leave Feedback</button>
   <span *ngIf="isSessionEnded(selectedSession) && !(selectedSession.status === 'completed')" class="badge bg-secondary">Session ended</span>
         <button *ngIf="selectedSession.meetingUrl" class="btn btn-outline-primary" (click)="openExternal(selectedSession.meetingUrl)">Open in new tab</button>
       </div>

@@ -55,25 +55,9 @@
         </select>
       </div>
 
-      <div class="row g-3">
-        <div class="col-6">
-          <label class="form-label small">Date</label>
-          <input class="form-control" type="date" [(ngModel)]="bookDate" />
-        </div>
-        <div class="col-6">
-          <label class="form-label small">Time</label>
-          <input class="form-control" type="time" [(ngModel)]="bookTime" />
-        </div>
-      </div>
 
-      <div class="mb-3 mt-3">
-        <label class="form-label small">Duration</label>
-        <select class="form-select" [(ngModel)]="bookDuration">
-          <option value="30">30 minutes</option>
-          <option value="60">1 hour</option>
-          <option value="90">1.5 hours</option>
-        </select>
-      </div>
+
+
 
       <div class="mb-3">
         <label class="form-label small">Notes (optional)</label>
@@ -82,9 +66,22 @@
 
       <div *ngIf="bookingError" class="text-danger small mb-2">{{ bookingError }}</div>
 
+      <div class="mb-3">
+        <label class="form-label small">Available slots</label>
+        <div *ngIf="slots.length>0">
+          <div *ngFor="let s of slots" class="card p-2 mb-2 d-flex justify-content-between align-items-center">
+            <div>
+              <input type="radio" name="slot" [value]="s._id" [(ngModel)]="selectedSlot" [ngModelOptions]="{standalone:true}" />
+              <span class="ms-2">{{ s.startAt | date:'mediumDate' }} · {{ s.startAt | date:'shortTime' }} - {{ s.endAt | date:'shortTime' }} ({{ s.durationMinutes }}m)</span>
+            </div>
+          </div>
+        </div>
+        <div *ngIf="slots.length===0" class="text-muted">No available slots</div>
+      </div>
+
       <div class="d-flex gap-3 justify-content-end mt-3">
         <button class="btn btn-outline-secondary" (click)="bookingTutorId = null" [disabled]="bookingInProgress">Cancel</button>
-        <button class="btn btn-primary" (click)="confirmBooking()" [disabled]="bookingInProgress">
+        <button class="btn btn-primary" (click)="confirmBooking()" [disabled]="bookingInProgress || slots.length===0 || !selectedSlot">
           <span *ngIf="bookingInProgress" class="spinner-border spinner-border-sm me-2" role="status"></span>
           Confirm Booking
         </button>
