@@ -22,7 +22,31 @@ router.post('/create', requireAuth, async (req: AuthRequest, res: Response) => {
   const [eh, em] = (endTime || '').split(':').map((x: any) => Number(x));
   if (Number.isNaN(sh) || Number.isNaN(sm) || Number.isNaN(eh) || Number.isNaN(em)) return res.status(400).json({ message: 'Invalid time format' });
   // Construct Date objects in local time using date components to avoid timezone math issues
-  const [y, m, d] = (date || '').split('-').map((x: any) => Number(x));
+  // Accept either YYYY-MM-DD or DD-MM-YYYY from the frontend and fall back to Date parse
+  let y: number, m: number, d: number;
+  try {
+    const parts = (date || '').split('-').map((x: any) => (x || '').trim());
+    if (parts.length === 3) {
+      // If first part looks like a 4-digit year (YYYY-MM-DD), use that ordering
+      if (parts[0].length === 4) {
+        y = Number(parts[0]); m = Number(parts[1]); d = Number(parts[2]);
+      } else if (parts[2].length === 4) {
+        // If last part looks like a 4-digit year (DD-MM-YYYY), use that ordering
+        y = Number(parts[2]); m = Number(parts[1]); d = Number(parts[0]);
+      } else {
+        // ambiguous ordering - try Date parsing as a fallback
+        const parsed = new Date(date);
+        if (isNaN(parsed.getTime())) return res.status(400).json({ message: 'Invalid date format' });
+        y = parsed.getFullYear(); m = parsed.getMonth() + 1; d = parsed.getDate();
+      }
+    } else {
+      const parsed = new Date(date);
+      if (isNaN(parsed.getTime())) return res.status(400).json({ message: 'Invalid date format' });
+      y = parsed.getFullYear(); m = parsed.getMonth() + 1; d = parsed.getDate();
+    }
+  } catch (e) {
+    return res.status(400).json({ message: 'Invalid date format' });
+  }
   if ([y, m, d].some(v => Number.isNaN(v))) return res.status(400).json({ message: 'Invalid date format' });
   const startAt = new Date(y, m - 1, d, sh, sm, 0, 0);
   const endAt = new Date(y, m - 1, d, eh, em, 0, 0);
