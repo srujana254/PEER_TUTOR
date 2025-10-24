@@ -1,9 +1,9 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top">
+<nav class="navbar navbar-expand-lg navbar-light sticky-top">
   <div class="container">
     <a class="navbar-brand d-flex align-items-center gap-2" [routerLink]="'/dashboard'">
       <span class="brand-icon d-flex align-items-center justify-content-center">🎓</span>
       <div class="d-flex flex-column">
-        <div class="fw-semibold">Peer Tutoring</div>
+        <div class="fw-semibold">PeerTutor</div>
         <div class="small text-muted">Welcome, {{ fullName || 'guest' }}</div>
       </div>
     </a>
@@ -14,9 +14,9 @@
 
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav ms-auto align-items-center" *ngIf="isAuthed(); else guestLinks">
-        <li class="nav-item me-3"><a class="nav-link btn-link" [routerLink]="'/dashboard'">Dashboard</a></li>
-        <li class="nav-item me-3"><a class="nav-link" [routerLink]="'/find'">Find Tutors</a></li>
-        <li class="nav-item me-3"><a class="nav-link" [routerLink]="'/sessions'">My Sessions</a></li>
+        <li class="nav-item me-3"><a class="nav-link" [routerLink]="'/dashboard'" routerLinkActive="active">Dashboard</a></li>
+        <li class="nav-item me-3"><a class="nav-link" [routerLink]="'/find'" routerLinkActive="active">Find Tutors</a></li>
+        <li class="nav-item me-3"><a class="nav-link" [routerLink]="'/sessions'" routerLinkActive="active">My Sessions</a></li>
         <li class="nav-item me-3" *ngIf="!isTutor()">
           <button class="btn btn-success btn-sm px-3 py-2" (click)="openBecomeModal()">Become a Tutor</button>
         </li>
@@ -75,9 +75,10 @@
           </div>
         </li>
         <li class="nav-item">
-          <button class="btn btn-outline-secondary ms-2" (click)="signOut()" title="Sign out">
-            <i class="bi bi-box-arrow-right"></i>
-          </button>
+          <a class="nav-link" [routerLink]="'/profile'" routerLinkActive="active">
+            <i class="bi bi-person-circle me-1"></i>
+            Profile
+          </a>
         </li>
       </ul>
 

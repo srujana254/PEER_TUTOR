@@ -11,6 +11,7 @@ import { Feedback } from './pages/feedback/feedback';
 import { Admin } from './pages/admin/admin';
 import { SignInPage } from './pages/signin/signin';
 import { SignUpPage } from './pages/signup/signup';
+import { StudentProfilePage } from './pages/student-profile/student-profile';
 import { authGuard } from './guards/auth.guard';
 import { guestGuard } from './guards/guest.guard';
 import { tutorGuard } from './guards/tutor.guard';
@@ -20,6 +21,7 @@ export const routes: Routes = [
   { path: 'signin', component: SignInPage, canActivate: [guestGuard] },
   { path: 'signup', component: SignUpPage, canActivate: [guestGuard] },
   { path: 'dashboard', component: DashboardHome, canActivate: [authGuard] },
+  { path: 'profile', component: StudentProfilePage, canActivate: [authGuard] },
   { path: 'tutor', component: TutorDashboard, canActivate: [authGuard, tutorGuard] },
   { path: 'tutor/slots', component: TutorSlots, canActivate: [authGuard, tutorGuard] },
   { path: 'find', component: FindTutors, canActivate: [authGuard] },
