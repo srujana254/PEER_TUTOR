@@ -48,6 +48,13 @@ export class TutorCardComponent {
     } catch (e) { return 0; }
   }
 
+  get displayHourlyRate(): number | null {
+    try {
+      const rate = this.tutor?.tutor?.hourlyRate || this.tutor?.hourlyRate || this.tutor?.profile?.hourlyRate || null;
+      return rate ? Number(rate) : null;
+    } catch (e) { return null; }
+  }
+
   // return an array for template iteration to draw stars
   starArray() { return [1,2,3,4,5]; }
 

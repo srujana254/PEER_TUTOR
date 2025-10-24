@@ -17,6 +17,13 @@
       </div>
 
       <div class="mb-3">
+        <label class="form-label small">Hourly Rate (USD)</label>
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" class="form-control" [(ngModel)]="hourlyRate" name="hourlyRate" placeholder="25" min="5" max="200" step="5">
+          <span class="input-group-text">per hour</span>
+        </div>
+        <div class="form-text">Set your hourly rate between $5-$200. Students will see this rate when booking sessions.</div>
       </div>
 
       <div class="mb-3">

@@ -11,6 +11,12 @@ export interface ISession extends Document {
   meetingUrl?: string;
   joinToken?: string;
   meetingUrlExpiresAt?: Date;
+  // Recurring session support
+  isRecurring?: boolean;
+  recurringPattern?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  recurringEndDate?: Date;
+  parentSessionId?: Types.ObjectId; // Reference to the original session for recurring sessions
+  recurringSessionNumber?: number; // 1, 2, 3, etc. for recurring sessions
 }
 
 const SessionSchema = new Schema<ISession>({
@@ -24,6 +30,12 @@ const SessionSchema = new Schema<ISession>({
   meetingUrl: { type: String },
   joinToken: { type: String },
   meetingUrlExpiresAt: { type: Date },
+  // Recurring session fields
+  isRecurring: { type: Boolean, default: false },
+  recurringPattern: { type: String, enum: ['daily', 'weekly', 'biweekly', 'monthly'] },
+  recurringEndDate: { type: Date },
+  parentSessionId: { type: Schema.Types.ObjectId, ref: 'Session' },
+  recurringSessionNumber: { type: Number, default: 1 }
 }, { timestamps: true });
 
 export const Session = mongoose.model<ISession>('Session', SessionSchema);

@@ -74,7 +74,11 @@ export class BecomeTutorPage {
       this.errorMessage = 'Please select at least one subject you can teach.';
       return;
     }
-    const body = { subjects: this.selectedSubjects, bio: this.bio };
+    if (!this.hourlyRate || this.hourlyRate < 5 || this.hourlyRate > 200) {
+      this.errorMessage = 'Please set an hourly rate between $5 and $200.';
+      return;
+    }
+    const body = { subjects: this.selectedSubjects, bio: this.bio, hourlyRate: this.hourlyRate };
     this.isSubmitting = true;
     this.api.post('/tutors/become', body).subscribe({
       next: (res: any) => {

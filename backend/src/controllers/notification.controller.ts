@@ -1,10 +1,26 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { Notification } from '../models/Notification';
+import { sendNotificationToUser } from '../lib/socket';
 
 export async function listNotifications(req: AuthRequest, res: Response) {
   const userId = req.userId!;
-  const list = await Notification.find({ userId }).sort({ createdAt: -1 }).limit(50);
+  const { category, unreadOnly, limit = 50 } = req.query;
+  
+  let query: any = { userId };
+  
+  if (category) {
+    query.category = category;
+  }
+  
+  if (unreadOnly === 'true') {
+    query.read = false;
+  }
+  
+  const list = await Notification.find(query)
+    .sort({ priority: -1, createdAt: -1 })
+    .limit(parseInt(limit as string));
+    
   res.json(list);
 }
 
@@ -23,6 +39,62 @@ export async function markReadBySession(req: AuthRequest, res: Response) {
   await Notification.updateMany(q, { $set: { read: true } });
   const list = await Notification.find(q).sort({ createdAt: -1 }).limit(50);
   res.json(list);
+}
+
+export async function markAllRead(req: AuthRequest, res: Response) {
+  const userId = req.userId!;
+  const result = await Notification.updateMany({ userId, read: false }, { read: true });
+  res.json({ message: 'All notifications marked as read', count: result.modifiedCount });
+}
+
+export async function getUnreadCount(req: AuthRequest, res: Response) {
+  const userId = req.userId!;
+  const count = await Notification.countDocuments({ userId, read: false });
+  res.json({ unreadCount: count });
+}
+
+export async function deleteNotification(req: AuthRequest, res: Response) {
+  const userId = req.userId!;
+  const { id } = req.params;
+  const result = await Notification.findOneAndDelete({ _id: id, userId });
+  if (!result) return res.status(404).json({ message: 'Notification not found' });
+  res.json({ message: 'Notification deleted' });
+}
+
+export async function createNotification(req: AuthRequest, res: Response) {
+  const { userId, type, title, message, data, priority = 'medium', category } = req.body;
+  if (!userId || !type || !title || !message || !category) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+  
+  const notification = await Notification.create({
+    userId,
+    type,
+    title,
+    message,
+    data: data || {},
+    priority,
+    category
+  });
+  
+  // Send real-time notification to user
+  try {
+    sendNotificationToUser(userId, {
+      id: notification._id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      priority: notification.priority,
+      category: notification.category,
+      data: notification.data,
+      read: notification.read,
+      createdAt: new Date()
+    });
+  } catch (e) {
+    console.error('Failed to send real-time notification:', e);
+  }
+  
+  res.status(201).json(notification);
 }
 
 

@@ -18,11 +18,8 @@ export class App {
   protected readonly title = signal('frontend');
   showNotifications = false;
   showBecomeModal = false;
-  notifications: Array<any> = [
-    { id: 1, title: 'New message from Alex', body: 'Alex sent you a message about your session tomorrow.', time: '2h ago', unread: true },
-    { id: 2, title: 'Session confirmed', body: 'Your session with Maya on Algebra is confirmed for Oct 18.', time: '1d ago', unread: false },
-    { id: 3, title: 'New tutor joined', body: 'A tutor for Chemistry just joined the platform.', time: '3d ago', unread: false }
-  ];
+  unreadCount = 0;
+  notifications: Array<any> = [];
   private auth = inject(AuthService);
   private notificationsSvc = inject(NotificationService);
   private socketSvc = inject(SocketService);
@@ -53,8 +50,25 @@ export class App {
       try { this.socketSvc.on('session_created', (data: any) => { try { window.dispatchEvent(new CustomEvent('session:booked', { detail: data })); } catch {} }); } catch {}
       try { this.notificationsSvc.start(); } catch {}
       this.notificationsSvc.notifications$.subscribe((list) => {
-        // map into small header-friendly shape
-        this.notifications = (list || []).map((n: any) => ({ id: n._id || n.id, title: n.type, body: n.data?.subject || '', time: new Date(n.createdAt).toLocaleString(), unread: !n.read, data: n.data }));
+        // map into enhanced shape with new fields
+        this.notifications = (list || []).map((n: any) => ({ 
+          id: n._id || n.id, 
+          title: n.title || n.type, 
+          body: n.message || n.data?.subject || '', 
+          time: new Date(n.createdAt).toLocaleString(), 
+          unread: !n.read, 
+          read: n.read,
+          priority: n.priority || 'medium',
+          category: n.category || 'session',
+          type: n.type,
+          data: n.data,
+          createdAt: n.createdAt
+        }));
+      });
+      
+      // Subscribe to unread count
+      this.notificationsSvc.unreadCount$.subscribe((count) => {
+        this.unreadCount = count;
       });
     }
   }
@@ -126,6 +140,75 @@ export class App {
   }
 
   markAllRead() {
-    this.notifications = this.notifications.map(n => ({ ...n, unread: false }));
+    this.notificationsSvc.markAllRead().subscribe({
+      next: () => {
+        this.notifications = this.notifications.map(n => ({ ...n, read: true, unread: false }));
+        this.unreadCount = 0;
+      },
+      error: () => {}
+    });
+  }
+
+  markAsRead(notification: any) {
+    this.notificationsSvc.markRead(notification.id).subscribe({
+      next: () => {
+        this.notifications = this.notifications.map(n => 
+          n.id === notification.id ? { ...n, read: true, unread: false } : n
+        );
+        this.unreadCount = Math.max(0, this.unreadCount - 1);
+      },
+      error: () => {}
+    });
+  }
+
+  deleteNotification(notification: any) {
+    this.notificationsSvc.deleteNotification(notification.id).subscribe({
+      next: () => {
+        this.notifications = this.notifications.filter(n => n.id !== notification.id);
+        if (!notification.read) {
+          this.unreadCount = Math.max(0, this.unreadCount - 1);
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  getNotificationIcon(type: string): string {
+    const iconMap: { [key: string]: string } = {
+      'session_booked': 'bi-calendar-check',
+      'session_cancelled': 'bi-calendar-x',
+      'session_completed': 'bi-check-circle',
+      'session_started': 'bi-play-circle',
+      'session_reminder': 'bi-clock',
+      'feedback_received': 'bi-star',
+      'tutor_available': 'bi-person-check',
+      'system_announcement': 'bi-megaphone'
+    };
+    return iconMap[type] || 'bi-bell';
+  }
+
+  getPriorityClass(priority: string): string {
+    const classMap: { [key: string]: string } = {
+      'low': 'bg-secondary',
+      'medium': 'bg-primary',
+      'high': 'bg-warning',
+      'urgent': 'bg-danger'
+    };
+    return classMap[priority] || 'bg-primary';
+  }
+
+  formatTime(date: string | Date): string {
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString();
   }
 }

@@ -572,12 +572,20 @@ export class MySessions {
     }
     // Determine tutorId to send: session may contain tutorId (TutorProfile._id) or a populated tutor object
     const sess: any = this.feedbackSession;
-    const tutorId = sess.tutorId || sess.tutor?._id || sess.tutor?.user?._id || sess.tutor?._id || null;
+    let tutorId = sess.tutorId || sess.tutor?._id || sess.tutor?.user?._id || sess.tutor?._id || null;
+    
+    // Ensure tutorId is a string, not an object
+    if (tutorId && typeof tutorId === 'object') {
+      tutorId = tutorId._id || tutorId.id || String(tutorId);
+    }
+    
     if (!tutorId) {
       this.toast.push('Unable to determine tutor for this session', 'error');
       this.feedbackSession = null;
       return;
     }
+    
+    console.log('Sending tutorId:', tutorId, 'type:', typeof tutorId);
 
     // Validate rating is within 1..5
     const r = Number(this.feedbackRating || 0);
@@ -614,21 +622,25 @@ export class MySessions {
           const tid = res.tutor._id || res.tutor.id;
           window.dispatchEvent(new CustomEvent('tutor:updated', { detail: { tutorId: tid, averageRating: res.tutor.averageRating || res.tutor.avgRating || res.tutor.avgRating || 0, ratingCount: res.tutor.ratingCount || res.tutor.cnt || res.tutor.ratingCount || 0 } }));
         } } catch (e) {}
-        // show success then animate modal close for smooth UX
-        this.toast.push('Feedback submitted successfully', 'success');
+        // Show success message
+        this.toast.push('Feedback submitted successfully!', 'success');
         this.submittingFeedback = false;
-        try {
-          // start exit animation
-          this.feedbackClosing = true;
-          // wait for CSS animation to finish (slightly longer than CSS duration)
-          setTimeout(() => {
-            this.feedbackSession = null;
-            this.feedbackClosing = false;
-          }, 380);
-        } catch (e) { this.feedbackSession = null; this.feedbackClosing = false; }
+        
+        // Reset form fields
+        this.feedbackRating = 5;
+        this.feedbackComment = '';
+        
+        // Close modal immediately
+        this.feedbackSession = null;
+        this.feedbackClosing = false;
+        
+        // Refresh sessions list to show updated hasFeedback status
+        this.reloadSessions();
       }, error: (err: any) => {
         this.submittingFeedback = false;
-        this.toast.push(err?.error?.message || 'Please sign in to leave feedback', 'error');
+        const errorMessage = err?.error?.message || err?.message || 'Failed to submit feedback. Please try again.';
+        this.toast.push(errorMessage, 'error');
+        console.error('Error submitting feedback:', err);
         // Do not automatically re-open the modal; user can re-open manually and retry
       } });
   }

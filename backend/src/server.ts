@@ -20,6 +20,9 @@ import { router as dashboardRoutes } from './routes/dashboard.routes';
 import { router as notificationRoutes } from './routes/notification.routes';
 import { router as adminRoutes } from './routes/admin.routes';
 import { router as slotRoutes } from './routes/slot.routes';
+import { router as sessionRecordingRoutes } from './routes/session-recording.routes';
+import { router as chatRoutes } from './routes/chat.routes';
+import { router as recurringSessionsRoutes } from './routes/recurring-sessions.routes';
 
 dotenv.config();
 
@@ -95,6 +98,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/slots', slotRoutes);
+app.use('/api/recordings', sessionRecordingRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/recurring-sessions', recurringSessionsRoutes);
 
 // NOTE: CORS already configured above via corsOptions; do not re-register here.
 const port = Number(process.env.PORT) || 4000;
